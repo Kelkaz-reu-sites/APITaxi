@@ -47,13 +47,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prepare tox workspace for Docker user
-        run: |
-          sudo mkdir -p .tox
-          sudo chown -R 1000:1000 .tox
+      - name: Prepare workspace for Docker test user
+        run: sudo chmod -R a+rwX .
 
       - name: Run tests in Docker
         run: docker compose --profile test run --rm taxi-test
+
+      - name: Restore workspace ownership
+        if: always()
+        run: sudo chown -R "$USER:$USER" .
 
       - name: Stop containers
         if: always()
