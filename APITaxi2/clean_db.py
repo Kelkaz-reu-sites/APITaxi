@@ -17,8 +17,8 @@ from APITaxi_models2.stats import *
 
 def blur_geotaxi():
     """
-    There is a celery task already deleting geolocation after two minutes, except for the
-    main index, used for statistics.
+    There is a celery task already deleting fresh geolocation entries, except
+    for the main index, used for statistics.
 
     We need to expire this index after two months, but we also need it for later detecting inactive
     taxis (delete_old_taxis). Instead, replace the locations with null data.
@@ -200,8 +200,9 @@ def delete_old_hails():
 
 def delete_old_taxis():
     """
-    If a taxi hasn't sent a location after a year, it can be deleted. Geolocation indices are deleted
-    after two minutes, but we keep a reference in the main index, preserved by blur_geotaxi above.
+    If a taxi hasn't sent a location after a year, it can be deleted.
+    Geolocation indices are deleted after the live freshness window, but we
+    keep a reference in the main index, preserved by blur_geotaxi above.
 
     As a taxi can be related to a hail, the latter must be deleted before we can delete the taxi.
 

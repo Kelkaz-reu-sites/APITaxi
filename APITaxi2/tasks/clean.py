@@ -13,14 +13,14 @@ def clean_geoindex_timestamps():
 
     A spatial index is a sorted set with the geohash as the score, so zremrangebyscore isn't an option.
     Instead we store location update time as a score in a separare "timestamps" sorted set,
-    and every two minutes, we delete scores inferior to the threshold timestamp, and then we delete
+    and at the configured freshness threshold, we delete scores inferior to the threshold timestamp, and then we delete
     geoindex members not found in "timestamps" anymore.
 
-    This task removes data older than two minutes.
+    This task removes data older than the configured GPS freshness.
 
     The taxi hash set (taxi:<taxi_id>) is not affected.
     """
-    max_time = int(time.time() - 120)
+    max_time = int(time.time() - current_app.config['REZO_TAXI_GPS_FRESHNESS_SECONDS'])
     current_app.logger.info('Run task clean_geoindex_timestamps for data older than %s', max_time)
 
     current_app.redis.zremrangebyscore('timestamps', 0, max_time)

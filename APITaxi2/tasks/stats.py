@@ -2,6 +2,7 @@
 
 import collections
 from datetime import datetime
+import math
 import time
 
 from celery import shared_task
@@ -132,10 +133,10 @@ def store_active_taxis(last_update):
     )
 
     # The asynchronous task clean_geoindex_timestamps removes entries from the
-    # ZSET "timestamps" that are older than 2 minutes.
-    # To generate the statistics for data older than 2 minutes, use the slow
-    # path with list_taxis().
-    if last_update <= 2:
+    # ZSET "timestamps" that are older than the configured GPS freshness.
+    # To generate statistics for older data, use the slow path with list_taxis().
+    gps_freshness_minutes = math.ceil(current_app.config['REZO_TAXI_GPS_FRESHNESS_SECONDS'] / 60)
+    if last_update <= gps_freshness_minutes:
         updates = redis_backend.get_timestamps_entries_between(start_time, end_time)
     else:
         updates = redis_backend.list_taxis(start_time, end_time)

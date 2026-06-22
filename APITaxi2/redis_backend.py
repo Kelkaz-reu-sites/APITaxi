@@ -53,9 +53,8 @@ def get_timestamps_entries_between(start_timestamp, end_timestamp):
     """Geotaxi stores taxis updates in the zset "timestamps". This function
     returns all updates between two timestamps.
 
-    The asynchronous task clean_geoindex_timestamps removes taxis with a
-    location older than 2 minutes, so any older entry is not guaranteed to be
-    returned."""
+    The asynchronous task clean_geoindex_timestamps removes taxis with an old
+    location, so older entries are not guaranteed to be returned."""
     ret = []
     rows = current_app.redis.zrangebyscore('timestamps', start_timestamp, end_timestamp, withscores=True)
     for row in rows:
@@ -144,7 +143,7 @@ class Location:
     update_date: datetime
 
 
-def taxis_locations_by_operator(lon, lat, distance):
+def taxis_locations_by_operator(lon, lat, distance, count=None):
     """Get the list of taxis positions from the redis geoindex "geoindex_2",
     which is populated by geotaxi.
 
@@ -159,6 +158,10 @@ def taxis_locations_by_operator(lon, lat, distance):
     ... }
     """
     locations = {}
+    kwargs = {}
+    if count:
+        kwargs['count'] = count
+
     data = current_app.redis.georadius(
         'geoindex_2',
         lon,
@@ -167,7 +170,8 @@ def taxis_locations_by_operator(lon, lat, distance):
         unit='m',
         withdist=True,
         withcoord=True,
-        sort='ASC'
+        sort='ASC',
+        **kwargs
     )
     for row in data:
         taxi_operator, distance, location = row

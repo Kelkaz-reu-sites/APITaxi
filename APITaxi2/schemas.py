@@ -34,17 +34,18 @@ from APITaxi_models2.vehicle import (
     VehicleDescription,
 )
 
+from . import rezo_taxi_config
 from .security import current_user
 
-
-# Range to adjust the visibility of taxis to clients
-TAXI_MIN_RADIUS = 150
-TAXI_MAX_RADIUS = 500
 
 # Consider taxis on a neutral basis for clients
 NEUTRAL_OPERATOR = "chauffeur professionnel"
 
 NOT_EMPTY = validate.Length(min=1, error="Field may not be empty.")
+
+
+def validate_taxi_radius(value):
+    return rezo_taxi_config.validate_radius(value)
 
 
 def hide_phone_numbers(ret):
@@ -419,10 +420,10 @@ class TaxiSchema(Schema):
         required=False, allow_none=False,
         validate=validate.OneOf(UPDATABLE_VEHICLE_STATUS)
     )
-    # Adjustable visibility radius (if null, fallback to max radius)
+    # Adjustable visibility radius (if null, fallback to configured default radius)
     radius = fields.Integer(
         required=False, allow_none=True,
-        validate=validate.Range(min=TAXI_MIN_RADIUS, max=TAXI_MAX_RADIUS)
+        validate=validate_taxi_radius
     )
 
     # Provided by Redis
@@ -620,7 +621,7 @@ class TaxiDetailsSchema(Schema):
     )
     radius = fields.Integer(
         required=False, allow_none=True,
-        validate=validate.Range(min=TAXI_MIN_RADIUS, max=TAXI_MAX_RADIUS)
+        validate=validate_taxi_radius
     )
 
 

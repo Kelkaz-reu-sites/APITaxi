@@ -77,6 +77,9 @@ def test_taxis_locations_by_operator(app):
     assert len(res['taxi1']) == 2
     assert len(res['taxi2']) == 1
 
+    res = redis_backend.taxis_locations_by_operator(2.35, 48.86, 500, count=2)
+    assert sum(len(operators) for operators in res.values()) == 2
+
 
 def test_log_hail(app, moteur):
     redis_backend.log_hail(

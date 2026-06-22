@@ -56,14 +56,14 @@ def _update_redis(pipe, data, operator):
         operator,
         f"{timestamp} {data['lat']} {data['lon']} {status} {device} {version}",
     )
-    # GEOADD geoindex (expired after two minutes by clean_geoindex_timestamps)
+    # GEOADD geoindex (expired by clean_geoindex_timestamps)
     _run_redis_action(
         pipe,
         'GEOADD',
         'geoindex',
         [data['lon'], data['lat'], taxi_id],
     )
-    # GEOADD geoindex_2 (expired after two minutes by clean_geoindex_timestamps)
+    # GEOADD geoindex_2 (expired by clean_geoindex_timestamps)
     _run_redis_action(
         pipe,
         'GEOADD',
@@ -71,17 +71,17 @@ def _update_redis(pipe, data, operator):
         [data['lon'], data['lat'], f"{taxi_id}:{operator}"],
     )
     #
-    # We have to clean geoindex(_2) after two minutes, so we use the timestamp as a score
-    # but in another sorted set.
+    # We have to clean geoindex(_2) after the configured freshness threshold,
+    # so we use the timestamp as a score but in another sorted set.
     #
-    # ZADD timestamps (expired after two minutes by clean_geoindex_timestamps)
+    # ZADD timestamps (expired by clean_geoindex_timestamps)
     _run_redis_action(
         pipe,
         'ZADD',
         'timestamps',
         {f"{taxi_id}:{operator}": now},
     )
-    # ZADD timestamps_id (expired after two minutes by clean_geoindex_timestamps)
+    # ZADD timestamps_id (expired by clean_geoindex_timestamps)
     _run_redis_action(
         pipe,
         'ZADD',

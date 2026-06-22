@@ -331,13 +331,13 @@ class TestEditHail:
         """Check hail status changes which generate an asynchronous call to the
         task handle_hail_timeout.
 
-        For example, when the hail status is "received_by_taxi", taxi has 30
+        For example, when the hail status is "received_by_taxi", taxi has 120
         seconds to accept or refuse the hail, otherwise the status
         automatically becomes "timeout_taxi".
         """
         hail = HailFactory(added_by=moteur.user, operateur=operateur.user)
 
-        # When hail is received by operator, taxi has 30 seconds to accept or
+        # When hail is received by operator, taxi has 120 seconds to accept or
         # refuse the request.
         hail.status = 'received_by_operator'
         with mock.patch.object(tasks.handle_hail_timeout, 'apply_async') as mocked_handle_hail_timeout:
@@ -351,7 +351,7 @@ class TestEditHail:
                     'new_hail_status': 'timeout_taxi',
                     'new_taxi_status': 'off'
                 },
-                countdown=30
+                countdown=120
             )
 
         # When taxi accepts the request, customer has 60 seconds to accept or
@@ -369,7 +369,7 @@ class TestEditHail:
                     'new_hail_status': 'timeout_customer',
                     'new_taxi_status': 'free'
                 },
-                countdown=30
+                countdown=60
             )
 
         # When customer accepts the request, taxi has 30 minutes to pickup the
@@ -679,6 +679,40 @@ class TestCreateHail:
         resp = _create_hail()
         assert resp.status_code == 400
         assert resp.json['errors']['data']['0']['taxi_id'] == ['Taxi is not free.']
+
+    def test_gps_freshness(self, app, moteur, operateur):
+        taxi = TaxiFactory(added_by=operateur.user)
+
+        def _create_hail():
+            with mock.patch.object(tasks.send_request_operator, 'apply_async'):
+                return moteur.client.post('/hails', json={
+                    'data': [{
+                        'customer_address': '23 avenue de Ségur, 75007 Paris',
+                        'customer_id': 'customer_ok',
+                        'customer_lon': 2.3098,
+                        'customer_lat': 48.851,
+                        'customer_phone_number': '+336868686',
+                        'taxi_id': taxi.id,
+                        'operateur': 'chauffeur professionnel',
+                    }]
+                })
+
+        app.redis.hset(
+            'taxi:%s' % taxi.id,
+            operateur.user.email,
+            '%s 48.84 2.35 free phone 2' % int(time.time() - 181)
+        )
+        resp = _create_hail()
+        assert resp.status_code == 400
+        assert resp.json['errors']['data']['0']['taxi_id'] == ['Taxi is no longer online.']
+
+        app.redis.hset(
+            'taxi:%s' % taxi.id,
+            operateur.user.email,
+            '%s 48.84 2.35 free phone 2' % int(time.time() - 179)
+        )
+        resp = _create_hail()
+        assert resp.status_code == 201, resp.json
 
     def test_ok(self, app, moteur, operateur):
 

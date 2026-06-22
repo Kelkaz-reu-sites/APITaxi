@@ -21,7 +21,7 @@ from APITaxi_models2 import (
 )
 from APITaxi_models2.stats import StatsSearches
 
-from .. import activity_logs, debug, redis_backend, schemas
+from .. import activity_logs, debug, redis_backend, rezo_taxi_config, schemas
 from ..exclusions import ExclusionHelper
 from ..security import auth, current_user
 from ..utils import get_short_uuid
@@ -235,8 +235,8 @@ def taxis_details(taxi_id):
       description: |
         Only these fields can be changed. Either one or both can be submitted.
 
-        The radius can be any integer between 150 and 500,
-        or send `null` to reset to the default value (500).
+        The radius can be any integer between the configured minimum and
+        maximum values, or send `null` to reset to the configured default.
       parameters:
         - name: taxi_id
           in: path
@@ -391,7 +391,7 @@ def taxis_search():
         Only taxis ready to accept hails will be listed:
 
         - available (status free)
-        - recent telemetry (< 2 min)
+        - recent telemetry
         - in a zone where they can accept clients
 
         Operators can only see their own taxis, unless they also manage a mobility app.
@@ -466,8 +466,11 @@ def taxis_search():
     # }
     #
     locations = redis_backend.taxis_locations_by_operator(
-        # Experiment a wider radius (taxis will still be filtered out following their preference later on)
-        params['lon'], params['lat'], schemas.TAXI_MAX_RADIUS * 2
+        # Look as far as the configured maximum, then filter each taxi by its own preference.
+        params['lon'],
+        params['lat'],
+        current_app.config['REZO_TAXI_RADIUS_MAX_METERS'],
+        count=current_app.config['REZO_TAXI_SEARCH_CANDIDATE_LIMIT'],
     )
     debug_ctx.log_admin(
         f'List of taxis around lon={params["lon"]} lat={params["lat"]}',
@@ -520,12 +523,13 @@ def taxis_search():
         if vehicle_description.status != 'free':
             continue
 
-        # For each location reported, only keep if the location has been reported
-        # less than 120 seconds ago
+        # For each location reported, only keep fresh GPS data.
         location = locations[taxi.id][vehicle_description.added_by.email]
         if not location.update_date:
             continue
-        if location.update_date + timedelta(seconds=120) < now:
+        if location.update_date + timedelta(
+            seconds=current_app.config['REZO_TAXI_GPS_FRESHNESS_SECONDS']
+        ) < now:
             continue
 
         data[taxi][vehicle_description] = location
@@ -553,13 +557,13 @@ def taxis_search():
     else:
         closest_taxi = None
 
-    # Filter out taxis outside the legal radius, or outside their custom radius
+    # Filter out taxis outside the configured radius, or outside their custom radius
     # Plus schema.dump expects a list of tuples (taxi, vehicle_description, location).
     data = [
         (taxi, vehicle_description, redis_location)
         for taxi, (vehicle_description, redis_location) in data.items()
         # Filter out of reach taxis based on each driver's preference
-        if redis_location.distance <= (vehicle_description.radius or schemas.TAXI_MAX_RADIUS)
+        if redis_location.distance <= rezo_taxi_config.radius_or_default(vehicle_description.radius)
     ]
 
     # Stats: store client search results
@@ -581,6 +585,7 @@ def taxis_search():
         data,
         key=lambda o: o[2].distance
     )
+    data = data[:current_app.config['REZO_TAXI_SEARCH_DISPLAY_LIMIT']]
 
     # Replace real taxi ID by a temporary ID
     if current_app.config.get('FAKE_TAXI_ID'):

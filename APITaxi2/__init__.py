@@ -21,6 +21,7 @@ from werkzeug.exceptions import BadRequest
 from APITaxi_models2 import db, Role, User
 
 from . import commands
+from . import rezo_taxi_config
 from . import views
 from .middlewares import ForceJSONContentTypeMiddleware
 from .redaction import redact_bytes, redact_sentry_event, redact_text
@@ -191,6 +192,7 @@ def create_app():
     if os.getenv('APITAXI_CONFIG_FILE'):
         app.config.from_envvar('APITAXI_CONFIG_FILE')
 
+    rezo_taxi_config.validate_app_config(app)
     configure_cors(app)
 
     sentry_dsn = app.config.get('SENTRY_DSN')

@@ -530,8 +530,8 @@ def hails_details(hail_id):
         )
 
     if status_changed:
-        # Hail has been received by taxi. Taxi has 30 seconds to accept or
-        # refuse the hail until timeout.
+        # Hail has been received by taxi. Taxi has a configurable delay to
+        # accept or refuse the hail until timeout.
         if hail.status == 'received_by_taxi':
             tasks.operators.handle_hail_timeout.apply_async(
                 args=(hail.id, vehicle_description_added_by_id),
@@ -540,9 +540,9 @@ def hails_details(hail_id):
                     'new_hail_status': 'timeout_taxi',
                     'new_taxi_status': 'off'
                 },
-                countdown=30
+                countdown=current_app.config['REZO_TAXI_DRIVER_ACCEPTANCE_TIMEOUT_SECONDS']
             )
-        # Hail has been accepted by the taxi. Customer has 20 seconds to accept
+        # Hail has been accepted by the taxi. Customer has a configurable delay to accept
         # or refuse the hail. If not, hail becomes "timeout_customer" and taxi
         # is free again.
         elif hail.status == 'accepted_by_taxi':
@@ -553,7 +553,7 @@ def hails_details(hail_id):
                     'new_hail_status': 'timeout_customer',
                     'new_taxi_status': 'free'
                 },
-                countdown=30
+                countdown=current_app.config['REZO_TAXI_CUSTOMER_CONFIRMATION_TIMEOUT_SECONDS']
             )
         # Hail is accepted by customer. Taxi has 30 minutes to pickup the
         # customer and change status to customer_on_board.
@@ -565,7 +565,7 @@ def hails_details(hail_id):
                     'new_hail_status': 'timeout_accepted_by_customer',
                     'new_taxi_status': 'occupied'
                 },
-                countdown=60 * 30
+                countdown=current_app.config['REZO_TAXI_PICKUP_TIMEOUT_SECONDS']
             )
         # Call timeout if customer is still on board after 2 hours.
         elif hail.status == 'customer_on_board':
@@ -576,7 +576,7 @@ def hails_details(hail_id):
                     'new_hail_status': 'timeout_taxi',
                     'new_taxi_status': 'off'
                 },
-                countdown=60 * 60 * 2
+                countdown=current_app.config['REZO_TAXI_RIDE_TIMEOUT_SECONDS']
             )
     return ret
 
@@ -802,8 +802,8 @@ def hails_create():
             }
         }, status_code=400)
 
-    # Return error if location data is too old, more than 120 seconds.
-    if time.time() - taxi_position.timestamp > 120:
+    # Return error if location data is too old.
+    if time.time() - taxi_position.timestamp > current_app.config['REZO_TAXI_GPS_FRESHNESS_SECONDS']:
         return make_error_json_response({
             'data': {
                 '0': {

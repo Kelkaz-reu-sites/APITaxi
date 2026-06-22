@@ -80,6 +80,31 @@ not publish this service directly on the public web; publish only the Rezo
 facade and keep the fork AGPL-3.0 source available according to the project
 licence strategy documented in the Rezo repository.
 
+## Rezo taxi business settings
+
+The Rezo fork replaces the historical metropolitan le.taxi limits with
+configurable Reunion-ready defaults:
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `REZO_TAXI_RADIUS_MIN_METERS` | `500` | Smallest driver visibility radius accepted by the API. |
+| `REZO_TAXI_RADIUS_DEFAULT_METERS` | `5000` | Radius used when a taxi has no custom radius. |
+| `REZO_TAXI_RADIUS_MAX_METERS` | `30000` | Maximum search and driver visibility radius. |
+| `REZO_TAXI_GPS_FRESHNESS_SECONDS` | `180` | Maximum accepted age for live GPS positions. |
+| `REZO_TAXI_DRIVER_ACCEPTANCE_TIMEOUT_SECONDS` | `120` | Time given to a driver to accept a hail. |
+| `REZO_TAXI_CUSTOMER_CONFIRMATION_TIMEOUT_SECONDS` | `60` | Time given to the customer after driver acceptance. |
+| `REZO_TAXI_SEARCH_DISPLAY_LIMIT` | `8` | Maximum taxis returned to the Rezo facade by default. |
+| `REZO_TAXI_SEARCH_CANDIDATE_LIMIT` | `20` | Maximum Redis GEO candidates fetched before business filtering. |
+| `REZO_TAXI_LONG_WAIT_THRESHOLD_SECONDS` | `900` | Threshold Rezo can use to flag a long waiting time. |
+
+Additional internal timeout knobs are available for legacy operator handoff,
+pickup and ride timeout behavior: `REZO_TAXI_OPERATOR_ACK_TIMEOUT_SECONDS`,
+`REZO_TAXI_SEND_OPERATOR_MAX_DELAY_SECONDS`,
+`REZO_TAXI_PICKUP_TIMEOUT_SECONDS` and `REZO_TAXI_RIDE_TIMEOUT_SECONDS`.
+Startup validates that all values are positive integers, that radius settings
+respect `min <= default <= max`, and that display limit does not exceed the
+candidate limit.
+
 ## Unittests
 
 On push, tests are automatically run by cirleci. To run tests locally, assuming you are using APITaxi_devel:

@@ -116,12 +116,18 @@ def send_request_operator(hail_id, endpoint, operator_header_name, operator_api_
     # This task has been called long after the hail has been created, probably
     # because of a production outage or because an ongoing deployment.
     # Cancel the hail, but set the taxi status back to free.
-    if db.session.query(func.NOW() - hail.added_at).scalar() > timedelta(seconds=+10):
+    max_delay = current_app.config['REZO_TAXI_SEND_OPERATOR_MAX_DELAY_SECONDS']
+    if db.session.query(func.NOW() - hail.added_at).scalar() > timedelta(seconds=+max_delay):
         current_app.logger.warning(
-            'Task send_request_operator called for hail %s after more than 10 seconds. Set as failure.',
-            hail.id
+            'Task send_request_operator called for hail %s after more than %s seconds. Set as failure.',
+            hail.id,
+            max_delay,
         )
-        processes.change_status(hail, 'failure', reason='Task send_request_operator called after more than 10 seconds.')
+        processes.change_status(
+            hail,
+            'failure',
+            reason=f'Task send_request_operator called after more than {max_delay} seconds.'
+        )
         old_taxi_status = vehicle_description.status
         new_taxi_status = 'free'
         vehicle_description.status = new_taxi_status
@@ -273,7 +279,8 @@ def send_request_operator(hail_id, endpoint, operator_header_name, operator_api_
 
     db.session.commit()
 
-    # If hail is still "received_by_operator" and not "received_by_taxi" after 10 seconds, timeout.
+    # If hail is still "received_by_operator" and not "received_by_taxi" after
+    # the configured delay, timeout.
     handle_hail_timeout.apply_async(
         args=(hail.id, vehicle_description_added_by_id),
         kwargs={
@@ -281,7 +288,7 @@ def send_request_operator(hail_id, endpoint, operator_header_name, operator_api_
             'new_hail_status': 'failure',
             'new_taxi_status': 'free'
         },
-        countdown=10
+        countdown=current_app.config['REZO_TAXI_OPERATOR_ACK_TIMEOUT_SECONDS']
     )
 
     return True

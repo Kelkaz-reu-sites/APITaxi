@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import time
 
-from sqlalchemy.orm import lazyload
+from sqlalchemy.orm import joinedload, lazyload
 
 from APITaxi2.exclusions import ExclusionHelper
 from APITaxi_models2 import Taxi, VehicleDescription
@@ -142,7 +142,14 @@ class TestTaxiPut:
         ) is None
 
         # Set the radius only
-        for radius, expected_code in [(150, 200), (149, 400), (500, 200), (501, 400), (None, 200)]:
+        for radius, expected_code in [
+            (500, 200),
+            (499, 400),
+            (5000, 200),
+            (30000, 200),
+            (30001, 400),
+            (None, 200),
+        ]:
             resp = operateur.client.put('/taxis/%s' % taxi.id, json={
                 'data': [{
                     'radius': radius
@@ -473,8 +480,9 @@ class TestTaxiSearch:
         assert resp.json['data'][1]['position']['lon']
         assert resp.json['data'][1]['position']['lat']
 
-        # Search for a location still in the ZUPC, but too far to reach taxis.
-        resp = moteur.client.get('/taxis?lon=%s&lat=%s' % (lon + 0.02, lat + 0.01))
+        # Search for a location still in the ZUPC, but too far for the 5 km
+        # default visibility radius.
+        resp = moteur.client.get('/taxis?lon=%s&lat=%s' % (lon + 0.07, lat + 0.03))
         assert resp.status_code == 200
         assert len(resp.json['data']) == 0
 
@@ -655,10 +663,16 @@ class TestTaxiSearch:
         ZUPCFactory()
         now = datetime.now()
         TaxiFactory(
-            vehicle__descriptions__radius=100, vehicle__descriptions__last_update_at=now
+            vehicle__descriptions__radius=500,
+            vehicle__descriptions__last_update_at=now,
         )
         taxi_2 = TaxiFactory(
-            vehicle__descriptions__radius=500, vehicle__descriptions__last_update_at=now
+            vehicle__descriptions__radius=5000,
+            vehicle__descriptions__last_update_at=now,
+        )
+        taxi_3 = TaxiFactory(
+            vehicle__descriptions__radius=30000,
+            vehicle__descriptions__last_update_at=now,
         )
 
         lon, lat = tmp_lon, tmp_lat = 2.35, 48.86
@@ -680,21 +694,48 @@ class TestTaxiSearch:
                 tmp_lat += 0.0001
                 self._post_geotaxi(app, tmp_lon, tmp_lat, taxi, description)
 
-        # The client is under 100 meters (~ 15.7 m)
+        # The client is under 500 meters.
+        resp = moteur.client.get('/taxis?lon=%s&lat=%s' % (lon, lat))
+        assert resp.status_code == 200
+        assert len(resp.json['data']) == 3
+
+        # The client is still under 500 meters.
+        resp = moteur.client.get('/taxis?lon=%s&lat=%s' % (lon + 0.001, lat + 0.001))
+        assert resp.status_code == 200
+        assert len(resp.json['data']) == 3
+
+        # The client is above 500 meters, but still within 5 km.
+        resp = moteur.client.get('/taxis?lon=%s&lat=%s' % (lon + 0.01, lat + 0.01))
+        assert resp.status_code == 200
+        assert len(resp.json['data']) == 2
+        assert {taxi['id'] for taxi in resp.json['data']} == {taxi_2.id, taxi_3.id}
+
+        # The client is above the 5 km default, but still within the 30 km max.
+        resp = moteur.client.get('/taxis?lon=%s&lat=%s' % (lon + 0.07, lat + 0.03))
+        assert resp.status_code == 200
+        assert len(resp.json['data']) == 1
+        assert resp.json['data'][0]['id'] == taxi_3.id
+
+    def test_search_display_limit(self, app, moteur):
+        app.config['FAKE_TAXI_ID'] = False
+        app.config['REZO_TAXI_SEARCH_DISPLAY_LIMIT'] = 2
+        app.config['REZO_TAXI_SEARCH_CANDIDATE_LIMIT'] = 5
+        ZUPCFactory()
+
+        lon, lat = 2.35, 48.86
+        taxis = []
+        for index in range(3):
+            taxi = TaxiFactory(vehicle__descriptions__last_update_at=datetime.now())
+            taxis.append(taxi)
+            description = VehicleDescription.query.options(
+                joinedload(VehicleDescription.added_by)
+            ).filter_by(vehicle_id=taxi.vehicle_id).one()
+            self._post_geotaxi(app, lon + (0.0001 * index), lat + (0.0001 * index), taxi, description)
+
         resp = moteur.client.get('/taxis?lon=%s&lat=%s' % (lon, lat))
         assert resp.status_code == 200
         assert len(resp.json['data']) == 2
-
-        # The client is between 100 and 500 meters (~ 157 m)
-        resp = moteur.client.get('/taxis?lon=%s&lat=%s' % (lon + 0.001, lat + 0.001))
-        assert resp.status_code == 200
-        assert len(resp.json['data']) == 1
-        assert resp.json['data'][0]['id'] == taxi_2.id
-
-        # The client is above 500 meters (~ 1.57 km)
-        resp = moteur.client.get('/taxis?lon=%s&lat=%s' % (lon + 0.01, lat + 0.01))
-        assert resp.status_code == 200
-        assert len(resp.json['data']) == 0
+        assert [taxi['id'] for taxi in resp.json['data']] == [taxis[0].id, taxis[1].id]
 
     def test_exclusion(self, app, moteur, QueriesTracker):
         TownFactory(mulhouse=True)
