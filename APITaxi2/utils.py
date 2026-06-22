@@ -2,6 +2,8 @@ from flask import current_app
 import requests
 import shortuuid
 
+from . import http_client
+
 
 REVERSE_API_URL = 'https://api-adresse.data.gouv.fr/reverse/'
 
@@ -13,7 +15,11 @@ def get_short_uuid():
 
 def reverse_geocode(lon, lat):
     try:
-        response = requests.get(REVERSE_API_URL, {'lon': lon, 'lat': lat, 'limit': 1})
+        response = requests.get(
+            REVERSE_API_URL,
+            params={'lon': lon, 'lat': lat, 'limit': 1},
+            timeout=http_client.request_timeout('REVERSE_GEOCODE'),
+        )
         properties = response.json()['features'][0]['properties']
         return "{name}, {city}".format(**properties)
     except (KeyError, requests.RequestException) as exc:

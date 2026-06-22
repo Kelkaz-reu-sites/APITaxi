@@ -170,6 +170,9 @@ class TestSendRequestOperator:
         """Hail is successfully sent to the operator API, which returns the
         taxi phone number.
         """
+        app.config['OPERATOR_API_HTTP_CONNECT_TIMEOUT'] = 1.5
+        app.config['OPERATOR_API_HTTP_READ_TIMEOUT'] = 6.5
+
         hail = HailFactory(status='received')
         # Create extra VehicleDescription for the vehicle to make sure the view
         # can handle this case.
@@ -180,9 +183,10 @@ class TestSendRequestOperator:
         operator_header_value = 'My-Value'
         taxi_phone_number = '+1234'
 
-        def requests_post(url, json=None, headers=None):
+        def requests_post(url, json=None, headers=None, timeout=None):
             assert url == operator_endpoint
             assert headers.get(operator_header_name) == operator_header_value
+            assert timeout == (1.5, 6.5)
             # Location is not available because taxi hasn't accepted the hail request yet.
             assert json['data'][0]['taxi']['position']['lon'] is None
             assert json['data'][0]['taxi']['position']['lat'] is None
@@ -235,6 +239,7 @@ class TestSendRequestOperator:
 
         def requests_post(*args, **kwargs):
             """Simulate HTTP server not answering."""
+            assert kwargs['timeout'] == (3.05, 10.0)
             raise requests.exceptions.RequestException('failure')
 
         with mock.patch(
@@ -259,6 +264,40 @@ class TestSendRequestOperator:
         assert hail.transition_log[-1]['from_status'] == 'received'
         assert hail.transition_log[-1]['to_status'] == 'failure'
         assert hail.transition_log[-1]['reason'] is not None
+        assert hail.transition_log[-1]['user'] is None
+
+    def test_operator_api_timeout(self, app):
+        """Timeout while contacting operator API fails the hail and frees the taxi."""
+        vehicle = VehicleFactory(descriptions=[])
+        vehicle_description = VehicleDescriptionFactory(vehicle=vehicle, status='answering')
+        taxi = TaxiFactory(vehicle=vehicle)
+        hail = HailFactory(operateur=vehicle_description.added_by, taxi=taxi, status='received')
+
+        hail_id = hail.id
+        vehicle_description_id = vehicle_description.id
+
+        def requests_post(*args, **kwargs):
+            assert kwargs['timeout'] == (3.05, 10.0)
+            raise requests.exceptions.Timeout('timeout')
+
+        with mock.patch(
+            'requests.post', requests_post
+        ), mock.patch(
+            'flask.current_app.logger.warning'
+        ) as mocked_logger:
+            ret = tasks.send_request_operator(hail.id, 'http://whatever', None, None)
+            assert ret is False
+            assert mocked_logger.call_count == 1
+
+        hail = db.session.get(Hail, hail_id)
+        assert hail.status == 'failure'
+
+        vehicle_description = db.session.get(VehicleDescription, vehicle_description_id)
+        assert vehicle_description.status == 'free'
+
+        assert hail.transition_log[-1]['from_status'] == 'received'
+        assert hail.transition_log[-1]['to_status'] == 'failure'
+        assert hail.transition_log[-1]['reason'] == 'Operator API request timed out.'
         assert hail.transition_log[-1]['user'] is None
 
     def test_operator_api_response_not_json(self, app):
@@ -416,4 +455,3 @@ class TestStoreActiveTaxis:
         assert stats_backend.get_nb_active_taxis(zupc_id=str(zupc_paris.zupc_id), operator='Beta Taxis') == 1
         assert stats_backend.get_nb_active_taxis(zupc_id=str(zupc_bordeaux.zupc_id), operator="Cab'ernet") == 2
         assert stats_backend.get_nb_active_taxis(zupc_id=str(zupc_bordeaux.zupc_id), operator='Beta Taxis') == 1
-    

@@ -9,7 +9,13 @@ from sqlalchemy.orm import joinedload
 
 from APITaxi_models2 import db, Hail, Taxi, Vehicle, VehicleDescription
 
-from .. import activity_logs, redis_backend, schemas, processes
+from .. import activity_logs, http_client, redis_backend, schemas, processes
+
+
+def _request_exception_failure_reason(exc):
+    if isinstance(exc, requests.exceptions.Timeout):
+        return 'Operator API request timed out.'
+    return 'Unable to contact operator API.'
 
 
 @shared_task(name='handle_hail_timeout')
@@ -142,7 +148,12 @@ def send_request_operator(hail_id, endpoint, operator_header_name, operator_api_
 
     # Send request.
     try:
-        resp = requests.post(endpoint, json=payload, headers=headers)
+        resp = requests.post(
+            endpoint,
+            json=payload,
+            headers=headers,
+            timeout=http_client.request_timeout('OPERATOR_API'),
+        )
     # If operator's API is unavailable, log the error, set hail as failure and
     # abort.
     except requests.exceptions.RequestException as exc:
@@ -159,7 +170,7 @@ def send_request_operator(hail_id, endpoint, operator_header_name, operator_api_
             response_payload=str(exc),
             response_status_code=None
         )
-        processes.change_status(hail, 'failure', reason=str(exc))
+        processes.change_status(hail, 'failure', reason=_request_exception_failure_reason(exc))
         old_taxi_status = vehicle_description.status
         new_taxi_status = 'free'
         vehicle_description.status = new_taxi_status

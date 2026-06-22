@@ -82,6 +82,19 @@ SQLALCHEMY_ENGINE_OPTIONS = {
     'pool_pre_ping': True
 }
 
+HTTP_CONNECT_TIMEOUT = 3.05
+HTTP_READ_TIMEOUT = 10.0
+
+# These values are used as (connect_timeout, read_timeout) with requests.
+REVERSE_GEOCODE_HTTP_CONNECT_TIMEOUT = 2.0
+REVERSE_GEOCODE_HTTP_READ_TIMEOUT = 4.0
+OPERATOR_API_HTTP_CONNECT_TIMEOUT = 3.05
+OPERATOR_API_HTTP_READ_TIMEOUT = 10.0
+DOWNLOAD_HTTP_CONNECT_TIMEOUT = 5.0
+DOWNLOAD_HTTP_READ_TIMEOUT = 120.0
+CLIENT_HTTP_CONNECT_TIMEOUT = 3.05
+CLIENT_HTTP_READ_TIMEOUT = 10.0
+
 
 # Flask-Security-Too introduced email validation, but we use the email field as a username
 SECURITY_USER_IDENTITY_ATTRIBUTES = [
@@ -138,6 +151,16 @@ for _env_var, _alt_name, _env_type in (
     ('CELERY_RESULT_BACKEND', 'REDIS_DIRECT_URI', str),
     ('SENTRY_DSN', None, str),
     ('SENTRY_SAMPLE_RATE', None, float),
+    ('HTTP_CONNECT_TIMEOUT', None, float),
+    ('HTTP_READ_TIMEOUT', None, float),
+    ('REVERSE_GEOCODE_HTTP_CONNECT_TIMEOUT', None, float),
+    ('REVERSE_GEOCODE_HTTP_READ_TIMEOUT', None, float),
+    ('OPERATOR_API_HTTP_CONNECT_TIMEOUT', None, float),
+    ('OPERATOR_API_HTTP_READ_TIMEOUT', None, float),
+    ('DOWNLOAD_HTTP_CONNECT_TIMEOUT', None, float),
+    ('DOWNLOAD_HTTP_READ_TIMEOUT', None, float),
+    ('CLIENT_HTTP_CONNECT_TIMEOUT', None, float),
+    ('CLIENT_HTTP_READ_TIMEOUT', None, float),
     ('CONSOLE_URL', None, str),
     ('SWAGGER_URL', None, str),
     ('NEUTRAL_OPERATOR', None, parse_env_bool),

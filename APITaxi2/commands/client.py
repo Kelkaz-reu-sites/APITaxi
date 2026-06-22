@@ -10,6 +10,7 @@ import requests
 
 from APITaxi2 import exclusions
 from APITaxi_models2 import db, Exclusion
+from .. import http_client
 
 
 blueprint = Blueprint('commands_client', __name__, cli_group=None)
@@ -26,13 +27,14 @@ def client():
         'X-Api-Key': os.environ['X_API_KEY'],
         'Content-Type':	'application/json',
     })
+    timeout = http_client.request_timeout('CLIENT')
     lon, lat = 2.35, 48.86
 
     while True:
         lon_lat = input(f"\nlon lat ({lon} {lat}): ")
         if lon_lat:
             lon, lat = map(float, lon_lat.split())
-        r = session.get(f'{BASE_URL}/taxis?lon={lon}&lat={lat}')
+        r = session.get(f'{BASE_URL}/taxis?lon={lon}&lat={lat}', timeout=timeout)
         if r.status_code != 200:
             print(r.status_code, r.json())
             continue
@@ -62,7 +64,7 @@ def client():
             }
         ]
     }
-    r = session.post(f'{BASE_URL}/hails', json=data)
+    r = session.post(f'{BASE_URL}/hails', json=data, timeout=timeout)
     if r.status_code != 201:
         print(r.status_code, r.json())
         return
@@ -71,7 +73,7 @@ def client():
 
     print("En attente de confirmation du chauffeur...")
     while True:
-        r = session.get(f"{BASE_URL}/hails/{hail['id']}")
+        r = session.get(f"{BASE_URL}/hails/{hail['id']}", timeout=timeout)
         if r.status_code != 200:
             print(r.status_code, r.json())
             return
@@ -100,12 +102,12 @@ def client():
             }
         ]
     }
-    r = session.put(f"{BASE_URL}/hails/{hail['id']}", json=data)
+    r = session.put(f"{BASE_URL}/hails/{hail['id']}", json=data, timeout=timeout)
     if r.status_code != 200:
         print(r.status_code, r.json())
         return
     hail = r.json()['data'][0]
-    
+
     if hail['status'] == "accepted_by_customer":
         print("Le taxi est en approche, bonne route !")
     else:

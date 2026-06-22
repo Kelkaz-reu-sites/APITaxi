@@ -807,7 +807,10 @@ class TestCreateHail:
         assert resp.json['data'][0]['taxi']['id'] != hail.fake_taxi_id
 
     def test_no_customer_address(self, app, moteur, operateur):
-        def requests_get(*args, **kwargs):
+        def requests_get(url, params=None, timeout=None):
+            assert url == utils.REVERSE_API_URL
+            assert params == {'lon': 2.3098, 'lat': 48.851, 'limit': 1}
+            assert timeout == (2.0, 4.0)
             # From the docs
             content = {
                 "type":"FeatureCollection",
@@ -858,3 +861,4 @@ class TestCreateHail:
             resp = self._create_hail(app, operateur, moteur, customer_address='')
             assert resp.status_code == 400
             assert 'customer_address' in resp.json['errors']['data']['0']
+            assert mocked.call_args.kwargs['timeout'] == (2.0, 4.0)

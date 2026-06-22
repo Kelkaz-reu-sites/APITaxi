@@ -12,6 +12,7 @@ from shapely.geometry import shape, MultiPolygon
 import shapefile
 
 from APITaxi_models2 import db, ADS, Town, ZUPC
+from .. import http_client
 
 
 blueprint = Blueprint('commands_towns', __name__, cli_group=None)
@@ -47,7 +48,7 @@ def download_zipfile(url, download_path):
     else:
         os.makedirs(download_path)
         print(f'Download {url} to {fullpath}')
-        r = requests.get(url)
+        r = requests.get(url, timeout=http_client.request_timeout('DOWNLOAD'))
         with open(fullpath, 'wb') as handle:
             handle.write(r.content)
 
