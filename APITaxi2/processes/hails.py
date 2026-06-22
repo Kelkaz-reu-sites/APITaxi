@@ -1,7 +1,7 @@
 import datetime
 
 
-def change_status(hail, new_status, user=None, reason=None):
+def change_status(hail, new_status, user=None, reason=None, event_id=None):
     """Set the new status and log it.
 
     There is no user on automated tasks. The reason is only required on error statuses.
@@ -17,10 +17,13 @@ def change_status(hail, new_status, user=None, reason=None):
     hail.last_update_at = now
     if hail.transition_log is None:
         hail.transition_log = []
-    hail.transition_log.append({
+    transition = {
         'from_status': old_status,
         'to_status': new_status,
         'timestamp': now.isoformat(),
         'user': user.id if user else None,  # Automated transition
         'reason': reason,
-    })
+    }
+    if event_id:
+        transition['event_id'] = event_id
+    hail.transition_log.append(transition)

@@ -10,6 +10,7 @@ from sqlalchemy.orm import joinedload
 from APITaxi_models2 import db, Hail, Taxi, Vehicle, VehicleDescription
 
 from .. import activity_logs, http_client, redis_backend, schemas, processes
+from ..services import hail_state_machine
 
 
 def _request_exception_failure_reason(exc):
@@ -61,17 +62,12 @@ def handle_hail_timeout(hail_id, operateur_id,
 
     current_app.logger.warning(error_msg)
 
-    processes.change_status(hail, new_hail_status, reason='timeout')
-
-    if new_taxi_status:
-        old_taxi_status = vehicle_description.status
-        vehicle_description.status = new_taxi_status
-        activity_logs.log_taxi_status(
-            hail.taxi_id,
-            old_taxi_status,
-            new_taxi_status,
-            task='handle_hail_timeout',
-        )
+    hail_state_machine.apply_timeout_transition(
+        hail,
+        vehicle_description,
+        new_hail_status,
+        new_taxi_status=new_taxi_status,
+    )
 
     db.session.commit()
 
@@ -281,14 +277,15 @@ def send_request_operator(hail_id, endpoint, operator_header_name, operator_api_
 
     # If hail is still "received_by_operator" and not "received_by_taxi" after
     # the configured delay, timeout.
+    timeout = hail_state_machine.timeout_for_status(hail.status)
     handle_hail_timeout.apply_async(
         args=(hail.id, vehicle_description_added_by_id),
         kwargs={
-            'initial_hail_status': 'received_by_operator',
-            'new_hail_status': 'failure',
-            'new_taxi_status': 'free'
+            'initial_hail_status': timeout.initial_hail_status,
+            'new_hail_status': timeout.new_hail_status,
+            'new_taxi_status': timeout.new_taxi_status,
         },
-        countdown=current_app.config['REZO_TAXI_OPERATOR_ACK_TIMEOUT_SECONDS']
+        countdown=timeout.countdown(current_app.config),
     )
 
     return True
