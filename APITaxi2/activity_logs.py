@@ -4,6 +4,8 @@ from sqlalchemy.orm import sessionmaker
 from APITaxi_models2 import db
 from APITaxi_models2.activity_logs import ActivityLog
 
+from .redaction import redact
+
 
 RESOURCES = (
     'user',
@@ -39,7 +41,7 @@ def _log_activity(resource, resource_id, action, **extra):
             resource=resource,
             resource_id=resource_id,
             action=action,
-            extra=extra,
+            extra=redact(extra),
         ))
         session.commit()
 

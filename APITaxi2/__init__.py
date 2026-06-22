@@ -23,6 +23,7 @@ from APITaxi_models2 import db, Role, User
 from . import commands
 from . import views
 from .middlewares import ForceJSONContentTypeMiddleware
+from .redaction import redact_bytes, redact_sentry_event, redact_text
 from .security import auth
 
 
@@ -184,6 +185,7 @@ def create_app():
             integrations=[
                 RedisIntegration(),
             ],
+            before_send=redact_sentry_event,
             traces_sample_rate=app.config.get('SENTRY_SAMPLE_RATE', 0.005)
         )
 
@@ -265,14 +267,14 @@ def create_app():
         @app.after_request
         def after_request_func(response):
             sys.stderr.write('============ %s %s ============\n' % (request.method, request.path))
-            sys.stderr.write(str(request.headers) + '\n')
-            sys.stderr.buffer.write(request.data)
+            sys.stderr.write(redact_text(str(request.headers)) + '\n')
+            sys.stderr.buffer.write(redact_bytes(request.data))
             sys.stderr.write('\n')
 
             sys.stderr.write('............ Response ............\n')
             sys.stderr.write(response.status + '\n')
-            sys.stderr.write(str(response.headers) + '\n')
-            sys.stderr.buffer.write(response.data)
+            sys.stderr.write(redact_text(str(response.headers)) + '\n')
+            sys.stderr.buffer.write(redact_bytes(response.data))
             sys.stderr.write('\n')
             return response
 

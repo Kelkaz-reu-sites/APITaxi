@@ -7,6 +7,8 @@ import time
 
 from flask import current_app
 
+from .redaction import redact_log_value
+
 
 @dataclass
 class _Taxi:
@@ -196,7 +198,7 @@ def log_hail(hail_id, http_method, request_payload, hail_initial_status,
     key = 'hail:%s' % hail_id
     data = {
         'method': http_method,
-        'payload': request_payload,
+        'payload': redact_log_value(request_payload),
         'initial_status': hail_initial_status
     }
 
@@ -205,7 +207,7 @@ def log_hail(hail_id, http_method, request_payload, hail_initial_status,
     if response_status_code:
         data['code'] = response_status_code
     if response_payload:
-        data['return'] = response_payload
+        data['return'] = redact_log_value(response_payload)
     if hail_final_status:
         data['final_status'] = hail_final_status
 
