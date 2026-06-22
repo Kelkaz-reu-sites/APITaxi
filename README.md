@@ -13,6 +13,52 @@ This project has several dependencies:
 
 To setup the API locally, use [APITaxi_devel](https://github.com/openmaraude/APITaxi_devel).
 
+## Rezo Taxi Core local Docker Compose
+
+This fork is used by REZO as the internal Rezo Taxi Core service. The local
+Compose stack keeps the API, Celery worker, Celery beat, PostgreSQL/TimescaleDB
+with PostGIS, and Redis separate.
+
+Start dependencies and apply migrations:
+
+```bash
+docker compose up -d taxi-postgres taxi-redis
+docker compose --profile tools run --rm taxi-migrate
+```
+
+Start the API and workers:
+
+```bash
+docker compose up -d taxi-api taxi-worker taxi-beat
+```
+
+Run the existing test suite in the Docker test environment:
+
+```bash
+docker compose --profile test run --rm taxi-test
+```
+
+The `taxi-test` service uses the Dockerfile `test-devenv` target. Tests create
+their own temporary PostgreSQL database with `testing.postgresql`, so they need
+PostgreSQL, PostGIS and TimescaleDB binaries inside the test container.
+
+The first application startup can take a few minutes because the development
+entrypoint creates and populates the shared `/venv` volume. API, worker and beat
+serialize this installation with a lock to avoid concurrent `pip install`
+races.
+
+The local PostgreSQL service initializes the `postgis`, `pgcrypto` and
+`timescaledb` extensions through `devenv/postgres-init/999_rezo_extensions.sql`.
+
+Local ports:
+
+* API: `http://127.0.0.1:5000`
+* PostgreSQL: `127.0.0.1:15432`
+* Redis: `127.0.0.1:16379`
+
+These ports are bound to `127.0.0.1` only. They are intended for local
+development and should not be exposed on the LAN or public networks.
+
 ## Unittests
 
 On push, tests are automatically run by cirleci. To run tests locally, assuming you are using APITaxi_devel:

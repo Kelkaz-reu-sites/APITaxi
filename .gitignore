@@ -1,5 +1,7 @@
 *.pyc
 dev_settings.py
+.env
+.env.local
 .idea/
 *.egg-info
 .tox

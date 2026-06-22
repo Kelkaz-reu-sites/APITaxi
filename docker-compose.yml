@@ -1,0 +1,118 @@
+name: rezo-taxi-core
+
+x-app-build: &app-build
+  context: .
+  dockerfile: Dockerfile
+
+x-app-volumes: &app-volumes
+  - .:/git/APITaxi
+  - taxi-venv:/venv
+  - ./devenv/settings.py:/settings.py:ro
+
+x-app-environment: &app-environment
+  APITAXI_CONFIG_FILE: /settings.py
+  FLASK_APP: APITaxi
+
+services:
+  taxi-postgres:
+    image: timescale/timescaledb-ha:pg14-ts2.9-latest
+    environment:
+      POSTGRES_DB: apitaxi
+      POSTGRES_USER: apitaxi
+      POSTGRES_PASSWORD: apitaxi
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - taxi-postgres-data:/home/postgres/pgdata/data
+      - ./devenv/postgres-init/999_rezo_extensions.sql:/docker-entrypoint-initdb.d/999_rezo_extensions.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U apitaxi -d apitaxi"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  taxi-redis:
+    image: redis:7.4-alpine
+    ports:
+      - "127.0.0.1:16379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - taxi-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  taxi-api:
+    build:
+      <<: *app-build
+      target: devenv
+    depends_on:
+      taxi-postgres:
+        condition: service_healthy
+      taxi-redis:
+        condition: service_healthy
+    environment: *app-environment
+    volumes: *app-volumes
+    ports:
+      - "127.0.0.1:5000:5000"
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import socket; s=socket.create_connection(('127.0.0.1', 5000), 2); s.close()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 180s
+
+  taxi-worker:
+    build:
+      <<: *app-build
+      target: worker-devenv
+    depends_on:
+      taxi-postgres:
+        condition: service_healthy
+      taxi-redis:
+        condition: service_healthy
+    environment: *app-environment
+    volumes: *app-volumes
+
+  taxi-beat:
+    build:
+      <<: *app-build
+      target: worker-beat-devenv
+    depends_on:
+      taxi-postgres:
+        condition: service_healthy
+      taxi-redis:
+        condition: service_healthy
+    environment: *app-environment
+    volumes: *app-volumes
+
+  taxi-migrate:
+    profiles: ["tools"]
+    build:
+      <<: *app-build
+      target: devenv
+    depends_on:
+      taxi-postgres:
+        condition: service_healthy
+      taxi-redis:
+        condition: service_healthy
+    environment: *app-environment
+    volumes: *app-volumes
+    command: ["bash", "-lc", "cd APITaxi_models2 && alembic upgrade head"]
+
+  taxi-test:
+    profiles: ["test"]
+    build:
+      <<: *app-build
+      target: test-devenv
+    working_dir: /git/APITaxi
+    volumes:
+      - .:/git/APITaxi
+    command: ["-lc", "tox"]
+
+volumes:
+  taxi-postgres-data:
+  taxi-redis-data:
+  taxi-venv:

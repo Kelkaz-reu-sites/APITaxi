@@ -23,6 +23,9 @@ dynamic = ["dependencies"]
 
 [project.optional-dependencies]
 tests = [
+    # passlib imports pkg_resources through Flask-Security. Keep this test-only
+    # pin until the dependency chain is upgraded away from pkg_resources.
+    'setuptools<81',
     'pytest>=8.3.1',
     'pytest-celery',
     'pytest-factoryboy',
