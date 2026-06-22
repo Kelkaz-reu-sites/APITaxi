@@ -153,6 +153,15 @@ Startup validates that all values are positive integers, that radius settings
 respect `min <= default <= max`, and that display limit does not exceed the
 candidate limit.
 
+When a driver declines a hail or does not answer before
+`REZO_TAXI_DRIVER_ACCEPTANCE_TIMEOUT_SECONDS`, Rezo Taxi Core creates a new hail
+attempt in the same `session_id` if another available taxi is found. The search
+reuses the Rezo radius, GPS freshness and ZUPC filters, excludes taxis already
+contacted in the session and stops after `REZO_TAXI_SEARCH_CANDIDATE_LIMIT`
+contacted taxis. If no candidate remains, the source hail keeps its final
+`declined_by_taxi` or `timeout_taxi` status so the Rezo facade can fall back to
+the taxi directory.
+
 ## Unittests
 
 On push, tests are automatically run by cirleci. To run tests locally, assuming you are using APITaxi_devel:

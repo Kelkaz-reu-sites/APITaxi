@@ -11,7 +11,7 @@ from sqlalchemy.orm import aliased, joinedload
 from APITaxi_models2 import Customer, db, Hail, Taxi, User, Vehicle, VehicleDescription
 from .. import activity_logs, redis_backend, schemas, tasks, processes, utils
 from ..security import auth, current_user
-from ..services import hail_state_machine
+from ..services import hail_reassignment, hail_state_machine
 from ..validators import (
     make_error_json_response,
     validate_schema
@@ -460,6 +460,8 @@ def hails_details(hail_id):
                 },
                 countdown=timeout.countdown(current_app.config),
             )
+        elif hail.status == 'declined_by_taxi':
+            hail_reassignment.reassign_after_driver_unavailable(hail.id)
     return ret
 
 

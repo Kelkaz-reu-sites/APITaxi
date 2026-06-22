@@ -10,7 +10,7 @@ from sqlalchemy.orm import joinedload
 from APITaxi_models2 import db, Hail, Taxi, Vehicle, VehicleDescription
 
 from .. import activity_logs, http_client, observability, redis_backend, schemas, processes
-from ..services import hail_state_machine
+from ..services import hail_reassignment, hail_state_machine
 
 
 def _request_exception_failure_reason(exc):
@@ -75,6 +75,9 @@ def handle_hail_timeout(hail_id, operateur_id,
     )
 
     db.session.commit()
+
+    if initial_hail_status == 'received_by_taxi' and new_hail_status == 'timeout_taxi':
+        hail_reassignment.reassign_after_driver_unavailable(hail_id)
 
 
 @shared_task(name='send_request_operator')
