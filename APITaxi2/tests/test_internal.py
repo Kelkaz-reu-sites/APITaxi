@@ -50,3 +50,32 @@ class TestInternalAuth:
             'apikey': moteur.user.apikey,
         }]})
         assert resp.status_code == 200
+
+
+class TestInternalHealth:
+    def test_invalid(self, anonymous):
+        resp = anonymous.client.get('/internal/health')
+        assert resp.status_code == 401
+
+        resp = anonymous.client.get('/internal/health', headers={
+            'X-Internal-Key': 'invalid',
+        })
+        assert resp.status_code == 401
+
+    def test_ok(self, anonymous):
+        resp = anonymous.client.get('/internal/health', headers={
+            'X-Internal-Key': 'test-internal-key',
+        })
+
+        assert resp.status_code == 200
+        assert resp.json == {'status': 'ok'}
+
+    def test_unconfigured(self, app, anonymous):
+        app.config['INTERNAL_HEALTHCHECK_KEY'] = None
+
+        resp = anonymous.client.get('/internal/health', headers={
+            'X-Internal-Key': 'test-internal-key',
+        })
+
+        assert resp.status_code == 503
+        assert resp.json == {'status': 'unconfigured'}

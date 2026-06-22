@@ -13,3 +13,4 @@ SECURITY_PASSWORD_HASH = 'bcrypt'
 CONSOLE_URL = 'http://localhost:3000'
 SWAGGER_URL = 'http://localhost:5000'
 NEUTRAL_OPERATOR = True
+INTERNAL_HEALTHCHECK_KEY = 'local-dev-only'

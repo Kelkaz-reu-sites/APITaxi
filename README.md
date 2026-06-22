@@ -59,6 +59,27 @@ Local ports:
 These ports are bound to `127.0.0.1` only. They are intended for local
 development and should not be exposed on the LAN or public networks.
 
+## Rezo internal service boundary
+
+Rezo Taxi Core must stay behind the Rezo backend. Browsers and mobile clients
+must call the public Rezo facade, for example `/api/v1/taxi/*`; Rezo then calls
+this Flask service over a private network with server-side credentials,
+timeouts and idempotency keys.
+
+By default, APITaxi does not enable CORS. Set `CORS_ALLOWED_ORIGINS` only for a
+known development or internal origin. A wildcard origin is rejected outside Flask
+debug mode to avoid exposing the internal API to arbitrary browser clients.
+
+The internal healthcheck is available at `/internal/health` and requires the
+`X-Internal-Key` header to match `INTERNAL_HEALTHCHECK_KEY`. The local Docker
+Compose healthcheck uses this route with the non-secret development value from
+`devenv/settings.py`.
+
+Production deployments must keep the API port on an internal network only. Do
+not publish this service directly on the public web; publish only the Rezo
+facade and keep the fork AGPL-3.0 source available according to the project
+licence strategy documented in the Rezo repository.
+
 ## Unittests
 
 On push, tests are automatically run by cirleci. To run tests locally, assuming you are using APITaxi_devel:

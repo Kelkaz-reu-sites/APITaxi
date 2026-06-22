@@ -95,6 +95,9 @@ DOWNLOAD_HTTP_READ_TIMEOUT = 120.0
 CLIENT_HTTP_CONNECT_TIMEOUT = 3.05
 CLIENT_HTTP_READ_TIMEOUT = 10.0
 
+CORS_ALLOWED_ORIGINS = []
+INTERNAL_HEALTHCHECK_KEY = None
+
 
 # Flask-Security-Too introduced email validation, but we use the email field as a username
 SECURITY_USER_IDENTITY_ATTRIBUTES = [
@@ -161,6 +164,8 @@ for _env_var, _alt_name, _env_type in (
     ('DOWNLOAD_HTTP_READ_TIMEOUT', None, float),
     ('CLIENT_HTTP_CONNECT_TIMEOUT', None, float),
     ('CLIENT_HTTP_READ_TIMEOUT', None, float),
+    ('CORS_ALLOWED_ORIGINS', None, parse_env_list(str)),
+    ('INTERNAL_HEALTHCHECK_KEY', None, str),
     ('CONSOLE_URL', None, str),
     ('SWAGGER_URL', None, str),
     ('NEUTRAL_OPERATOR', None, parse_env_bool),

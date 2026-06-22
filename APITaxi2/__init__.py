@@ -161,12 +161,26 @@ def celery_init_app(app):
     return celery_app
 
 
+def configure_cors(app):
+    allowed_origins = app.config.get('CORS_ALLOWED_ORIGINS') or []
+    if isinstance(allowed_origins, str):
+        allowed_origins = [
+            origin.strip()
+            for origin in allowed_origins.split(',')
+            if origin.strip()
+        ]
+
+    if '*' in allowed_origins and not app.debug:
+        raise RuntimeError('CORS wildcard is not allowed outside debug mode')
+
+    if allowed_origins:
+        CORS(app, resources={r'*': {"origins": allowed_origins}})
+
+
 def create_app():
     app = Flask(__name__, static_folder=None)
     app.wsgi_app = ForceJSONContentTypeMiddleware(app.wsgi_app)
 
-    # Disable CORS
-    CORS(app, resources={r'*': {"origins": "*"}})
     # Make /route similar to /route/
     app.url_map.strict_slashes = False
 
@@ -176,6 +190,8 @@ def create_app():
     # Override default conf with environment variable APITAXI_CONFIG_FILE
     if os.getenv('APITAXI_CONFIG_FILE'):
         app.config.from_envvar('APITAXI_CONFIG_FILE')
+
+    configure_cors(app)
 
     sentry_dsn = app.config.get('SENTRY_DSN')
     if sentry_dsn:

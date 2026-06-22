@@ -38,6 +38,7 @@ DEBUG = True
 TESTING = True
 CONSOLE_URL = 'http://console'
 NEUTRAL_OPERATOR = True
+INTERNAL_HEALTHCHECK_KEY = 'test-internal-key'
 ''' % {
         'database': postgresql.sqlalchemy_url(),
         'redis': 'unix://%s' % redis_server,
