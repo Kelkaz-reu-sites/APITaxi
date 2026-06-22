@@ -120,6 +120,10 @@ docker build --target worker -t rezo-taxi-core-worker .
 docker build --target beat -t rezo-taxi-core-beat .
 ```
 
+Preproduction deployment, secrets, backups, healthchecks, incident response and
+rollback are documented in `deploy/REZO_PREPRODUCTION.md`. Use
+`deploy/env.preproduction.example` as the non-secret environment template.
+
 ## Rezo Taxi Core CI
 
 The `Rezo Taxi Core CI` GitHub Actions workflow validates pushes and pull
