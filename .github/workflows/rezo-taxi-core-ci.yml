@@ -1,0 +1,71 @@
+name: Rezo Taxi Core CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - "rezo/**"
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rezo-taxi-core-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate sources and dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install audit tooling
+        run: python -m pip install --upgrade pip pip-audit
+
+      - name: Check Docker Compose configuration
+        run: docker compose config >/tmp/rezo-taxi-compose.yml
+
+      - name: Compile Python sources
+        run: python -m compileall -q APITaxi APITaxi2 APITaxi_models2 deploy/conf
+
+      - name: Audit Python dependencies
+        run: pip-audit -r requirements.txt --strict
+
+  tests:
+    name: Run APITaxi test suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run tests in Docker
+        run: docker compose --profile test run --rm taxi-test
+
+      - name: Stop containers
+        if: always()
+        run: docker compose --profile test down -v --remove-orphans
+
+  docker-builds:
+    name: Build production targets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build web image
+        run: docker build --target web -t rezo-taxi-core-web:test .
+
+      - name: Build worker image
+        run: docker build --target worker -t rezo-taxi-core-worker:test .
+
+      - name: Build beat image
+        run: docker build --target beat -t rezo-taxi-core-beat:test .

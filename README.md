@@ -107,6 +107,14 @@ docker build --target worker -t rezo-taxi-core-worker .
 docker build --target beat -t rezo-taxi-core-beat .
 ```
 
+## Rezo Taxi Core CI
+
+The `Rezo Taxi Core CI` GitHub Actions workflow validates pushes and pull
+requests on `main`, `master` and `rezo/**` branches. It checks Docker Compose
+configuration, compiles Python sources, runs `pip-audit`, runs the Docker test
+suite and builds the production `web`, `worker` and `beat` image targets. It
+does not publish images.
+
 ## Rezo taxi business settings
 
 The Rezo fork replaces the historical metropolitan le.taxi limits with
