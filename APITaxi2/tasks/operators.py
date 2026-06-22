@@ -9,7 +9,7 @@ from sqlalchemy.orm import joinedload
 
 from APITaxi_models2 import db, Hail, Taxi, Vehicle, VehicleDescription
 
-from .. import activity_logs, http_client, redis_backend, schemas, processes
+from .. import activity_logs, http_client, observability, redis_backend, schemas, processes
 from ..services import hail_state_machine
 
 
@@ -40,10 +40,12 @@ def handle_hail_timeout(hail_id, operateur_id,
         VehicleDescription.added_by_id == int(operateur_id)
     ).one_or_none()
     if not res:
-        current_app.logger.warning(
-            'handle_hail_timeout: hail_id=%s operateur_id=%s not found',
-            hail_id,
-            operateur_id
+        observability.log_event(
+            current_app.logger,
+            'warning',
+            'hail_timeout_not_found',
+            hail_id=hail_id,
+            operateur_id=operateur_id,
         )
         return
 
@@ -53,14 +55,17 @@ def handle_hail_timeout(hail_id, operateur_id,
     if hail.status != initial_hail_status:
         return
 
-    error_msg = \
-        f'Timeout occured: hail {hail_id} of taxi {hail.taxi_id} with operator' \
-        f' {hail.added_by_id} still has status {initial_hail_status}. Set new hail' \
-        f' status to {new_hail_status}'
-    if new_taxi_status:
-        error_msg += f' and taxi status to {new_taxi_status}'
-
-    current_app.logger.warning(error_msg)
+    observability.log_event(
+        current_app.logger,
+        'warning',
+        'hail_timeout_reached',
+        hail_id=hail_id,
+        taxi_id=hail.taxi_id,
+        operator_id=hail.added_by_id,
+        initial_hail_status=initial_hail_status,
+        new_hail_status=new_hail_status,
+        new_taxi_status=new_taxi_status,
+    )
 
     hail_state_machine.apply_timeout_transition(
         hail,
@@ -99,14 +104,24 @@ def send_request_operator(hail_id, endpoint, operator_header_name, operator_api_
         Hail.id == hail_id
     ).one_or_none()
     if not res:
-        current_app.logger.warning('Unable to find hail %s' % hail_id)
+        observability.log_event(
+            current_app.logger,
+            'warning',
+            'operator_hail_not_found',
+            hail_id=hail_id,
+        )
         return False
 
     hail, vehicle_description = res
 
     if hail.status != 'received':
-        current_app.logger.warning('Task send_request_operator called for hail %s, but status is %s. Ignore.',
-                                   hail.id, hail.status)
+        observability.log_event(
+            current_app.logger,
+            'warning',
+            'operator_hail_unexpected_status',
+            hail_id=hail.id,
+            status=hail.status,
+        )
         return False
 
     # This task has been called long after the hail has been created, probably
@@ -114,10 +129,12 @@ def send_request_operator(hail_id, endpoint, operator_header_name, operator_api_
     # Cancel the hail, but set the taxi status back to free.
     max_delay = current_app.config['REZO_TAXI_SEND_OPERATOR_MAX_DELAY_SECONDS']
     if db.session.query(func.NOW() - hail.added_at).scalar() > timedelta(seconds=+max_delay):
-        current_app.logger.warning(
-            'Task send_request_operator called for hail %s after more than %s seconds. Set as failure.',
-            hail.id,
-            max_delay,
+        observability.log_event(
+            current_app.logger,
+            'warning',
+            'operator_hail_task_too_late',
+            hail_id=hail.id,
+            max_delay_seconds=max_delay,
         )
         processes.change_status(
             hail,
@@ -159,9 +176,14 @@ def send_request_operator(hail_id, endpoint, operator_header_name, operator_api_
     # If operator's API is unavailable, log the error, set hail as failure and
     # abort.
     except requests.exceptions.RequestException as exc:
-        current_app.logger.warning('Unable to send request to operator %s on %s: %s' % (
-            hail.operateur.email, endpoint, exc
-        ))
+        observability.log_event(
+            current_app.logger,
+            'warning',
+            'operator_api_request_failed',
+            hail_id=hail.id,
+            operator_id=hail.operateur_id,
+            error_type=exc.__class__.__name__,
+        )
         redis_backend.log_hail(
             hail_id=hail.id,
             http_method='POST to operator',
@@ -190,7 +212,14 @@ def send_request_operator(hail_id, endpoint, operator_header_name, operator_api_
     try:
         response_payload = json.dumps(resp.json(), indent=2)
     except json.decoder.JSONDecodeError as exc:
-        current_app.logger.warning('Operator API of %s did not return a JSON response' % hail.operateur.email)
+        observability.log_event(
+            current_app.logger,
+            'warning',
+            'operator_api_invalid_json',
+            hail_id=hail.id,
+            operator_id=hail.operateur_id,
+            response_status_code=resp.status_code,
+        )
         redis_backend.log_hail(
             hail_id=hail.id,
             http_method='POST to operator',
@@ -217,9 +246,14 @@ def send_request_operator(hail_id, endpoint, operator_header_name, operator_api_
     # If the operator's API isn't successful, log the response, set hail as
     # failure and abort.
     if resp.status_code < 200 or resp.status_code >= 300:
-        current_app.logger.warning('Operator API of %s returned HTTP/%s instead of HTTP/2xx' % (
-            hail.operateur.email, resp.status_code
-        ))
+        observability.log_event(
+            current_app.logger,
+            'warning',
+            'operator_api_unexpected_status',
+            hail_id=hail.id,
+            operator_id=hail.operateur_id,
+            response_status_code=resp.status_code,
+        )
         redis_backend.log_hail(
             hail_id=hail.id,
             http_method='POST to operator',
@@ -244,7 +278,14 @@ def send_request_operator(hail_id, endpoint, operator_header_name, operator_api_
         return False
 
     # Log this successful request
-    current_app.logger.info('Successfully sent hail request to %s' % hail.operateur.email)
+    observability.log_event(
+        current_app.logger,
+        'info',
+        'operator_hail_sent',
+        hail_id=hail.id,
+        operator_id=hail.operateur_id,
+        response_status_code=resp.status_code,
+    )
     redis_backend.log_hail(
         hail_id=hail.id,
         http_method='POST to operator',

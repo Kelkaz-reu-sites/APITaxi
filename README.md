@@ -88,6 +88,19 @@ The internal healthcheck is available at `/internal/health` and requires the
 Compose healthcheck uses this route with the non-secret development value from
 `devenv/settings.py`.
 
+Internal observability endpoints and headers:
+
+* Rezo should send `X-Correlation-ID` on each internal call; APITaxi returns the
+  same header or generates one when missing.
+* API request logs are JSON records with `event`, `correlation_id`, `method`,
+  `path`, `endpoint`, `status_code` and `duration_ms`.
+* Logs reuse the APITaxi redaction layer so API keys, tokens, phone numbers,
+  addresses and precise coordinates are not emitted.
+* `/internal/metrics` exposes minimal Prometheus text metrics and requires the
+  same `X-Internal-Key` header as `/internal/health`.
+* `OBSERVABILITY_REQUEST_LOGS_ENABLED` and `OBSERVABILITY_METRICS_ENABLED`
+  control the request log and in-process metrics collectors.
+
 Worker health can be checked with Celery inspect:
 
 ```bash

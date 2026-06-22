@@ -21,6 +21,7 @@ from werkzeug.exceptions import BadRequest
 from APITaxi_models2 import db, Role, User
 
 from . import commands
+from . import observability
 from . import rezo_taxi_config
 from . import views
 from .middlewares import ForceJSONContentTypeMiddleware
@@ -194,6 +195,7 @@ def create_app():
 
     rezo_taxi_config.validate_app_config(app)
     configure_cors(app)
+    observability.configure_observability(app)
 
     sentry_dsn = app.config.get('SENTRY_DSN')
     if sentry_dsn:
