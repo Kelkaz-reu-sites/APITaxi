@@ -60,7 +60,7 @@ ENV APITAXI_CONFIG_FILE=/settings.py
 # `flask shell` and flask commands like `flask create_user` need FLASK_APP to be set.
 ENV FLASK_APP=APITaxi
 
-CMD ["flask", "--debug", "--app", "APITaxi", "run", "--host", "0.0.0.0", "--port", "5000"]
+CMD ["gunicorn", "--config", "deploy/conf/gunicorn.conf.py", "--reload", "APITaxi:create_app()"]
 
 
 ##### DEV WORKER IMAGE #####
@@ -91,29 +91,27 @@ FROM worker-devenv AS worker-beat-devenv
 CMD watchmedo auto-restart --directory=/git/ --pattern='*.py' --recursive -- celery --app=APITaxi2.celery_worker beat -s /tmp/celerybeat-schedule --pidfile /tmp/celerybeat.pid
 
 
-##### PROD IMAGE #####
-FROM ubuntu:24.04
+##### PROD RUNTIME IMAGE #####
+FROM ubuntu:24.04 AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DEBCONF_NONINTERACTIVE_SEEN=true
+ENV PYTHONUNBUFFERED=1
 
 RUN apt-get update && apt-get install -y \
   libpq-dev \
   python3-pip \
   python3-venv \
   libgeos-dev \
-  supervisor \
   less
 
-RUN useradd api
+RUN useradd --system --create-home --home-dir /home/api --shell /usr/sbin/nologin api
 
 # Required by click with Python3, cf https://click.palletsprojects.com/python3/
 ENV LC_ALL=C.UTF-8
 
-# Install admin interface
 RUN python3 -m venv /venv
-RUN /venv/bin/pip3 install -U setuptools
-RUN /venv/bin/pip3 install uwsgi
+RUN /venv/bin/pip3 install -U "pip<27" "setuptools<81"
 
 # `flask shell` and flask commands like `flask create_user` need FLASK_APP to be set.
 ENV FLASK_APP=APITaxi
@@ -130,11 +128,27 @@ WORKDIR /app
 
 RUN /venv/bin/pip3 install -r requirements.txt
 
-# Supervisor and services configuration
-COPY deploy/supervisor/* /etc/supervisor/conf.d/
-COPY deploy/conf/* /etc/api-taxi/
-
 # Application source code
 COPY . /app
+RUN chown -R api:api /app /home/api
 
-CMD ["/usr/bin/supervisord", "--nodaemon"]
+USER api
+
+
+##### PROD WORKER IMAGE #####
+FROM runtime AS worker
+
+CMD ["celery", "--app=APITaxi2.celery_worker", "worker", "--pidfile=/tmp/celery.pid", "-n", "api_taxi_worker@%h", "-E"]
+
+
+##### PROD WORKER BEAT IMAGE #####
+FROM runtime AS beat
+
+CMD ["celery", "--app=APITaxi2.celery_worker", "beat", "--pidfile=/tmp/celery-beat.pid", "-s", "/tmp/celerybeat-schedule"]
+
+
+##### PROD WEB IMAGE #####
+FROM runtime AS web
+
+EXPOSE 5000
+CMD ["gunicorn", "--config", "/app/deploy/conf/gunicorn.conf.py", "APITaxi:create_app()"]

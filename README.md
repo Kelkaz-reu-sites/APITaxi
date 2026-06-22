@@ -16,8 +16,8 @@ To setup the API locally, use [APITaxi_devel](https://github.com/openmaraude/API
 ## Rezo Taxi Core local Docker Compose
 
 This fork is used by REZO as the internal Rezo Taxi Core service. The local
-Compose stack keeps the API, Celery worker, Celery beat, PostgreSQL/TimescaleDB
-with PostGIS, and Redis separate.
+Compose stack keeps the Gunicorn API, Celery worker, Celery beat,
+PostgreSQL/TimescaleDB with PostGIS, and Redis separate.
 
 Start dependencies and apply migrations:
 
@@ -31,6 +31,19 @@ Start the API and workers:
 ```bash
 docker compose up -d taxi-api taxi-worker taxi-beat
 ```
+
+Runtime commands used by the separated services:
+
+```bash
+gunicorn --config deploy/conf/gunicorn.conf.py 'APITaxi:create_app()'
+celery --app=APITaxi2.celery_worker worker -E
+celery --app=APITaxi2.celery_worker beat -s /tmp/celerybeat-schedule
+```
+
+The local `taxi-api` service runs Gunicorn with `--reload` for development.
+Worker and beat stay in separate containers; Supervisor is kept only as legacy
+reference under `deploy/supervisor/` and is not the durable REZO deployment
+target.
 
 Run the existing test suite in the Docker test environment:
 
@@ -75,10 +88,24 @@ The internal healthcheck is available at `/internal/health` and requires the
 Compose healthcheck uses this route with the non-secret development value from
 `devenv/settings.py`.
 
+Worker health can be checked with Celery inspect:
+
+```bash
+docker compose exec taxi-worker celery --app=APITaxi2.celery_worker inspect ping --timeout=5
+```
+
 Production deployments must keep the API port on an internal network only. Do
 not publish this service directly on the public web; publish only the Rezo
 facade and keep the fork AGPL-3.0 source available according to the project
 licence strategy documented in the Rezo repository.
+
+Production image targets are separated:
+
+```bash
+docker build --target web -t rezo-taxi-core-web .
+docker build --target worker -t rezo-taxi-core-worker .
+docker build --target beat -t rezo-taxi-core-beat .
+```
 
 ## Rezo taxi business settings
 

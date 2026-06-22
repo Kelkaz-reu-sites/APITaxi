@@ -75,6 +75,12 @@ services:
         condition: service_healthy
     environment: *app-environment
     volumes: *app-volumes
+    healthcheck:
+      test: ["CMD-SHELL", "celery --app=APITaxi2.celery_worker inspect ping --timeout=5 | grep -q pong"]
+      interval: 30s
+      timeout: 10s
+      retries: 6
+      start_period: 180s
 
   taxi-beat:
     build:
@@ -87,6 +93,12 @@ services:
         condition: service_healthy
     environment: *app-environment
     volumes: *app-volumes
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/celerybeat.pid && kill -0 $(cat /tmp/celerybeat.pid)"]
+      interval: 30s
+      timeout: 10s
+      retries: 6
+      start_period: 180s
 
   taxi-migrate:
     profiles: ["tools"]
