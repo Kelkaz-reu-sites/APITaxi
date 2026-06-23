@@ -293,7 +293,7 @@ Pilot smoke prerequisite discovered on 2026-06-23:
   are imported ;
 - the dedicated runbook is `deploy/REZO_PILOT_SMOKE.md`.
 
-Reunion cadastre dry-run note, 2026-06-23:
+Reunion cadastre import note, 2026-06-23:
 
 - pre-deploy/pre-import backup:
   `/var/backups/rezo-taxi-core/apitaxi-predeploy-d0cbc24-20260623T133839Z.dump` ;
@@ -304,7 +304,13 @@ Reunion cadastre dry-run note, 2026-06-23:
 - dry-run command succeeded with
   `Reunion cadastre source validated: 24 towns` ;
 - post dry-run counters stayed `town974=0` and `zupc_rezo=0` ;
-- the mutating import is intentionally pending explicit approval.
+- mutating import was then approved and executed without `--dry-run` ;
+- post-import counters: `town974=24`, `zupc_allowed=24` ;
+- ZUPC `949cdf3e-9128-524e-a39f-db91c1ea0cc7` is named
+  `REZO_REUNION_MVP` ;
+- Saint-Denis, Saint-Pierre and Saint-Paul test points are covered by a town
+  and the Rezo ZUPC ;
+- the next prerequisite is controlled pilot taxi data, not geography.
 
 ### Generic container deployment
 

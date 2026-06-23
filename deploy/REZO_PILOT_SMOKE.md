@@ -1,6 +1,6 @@
 # Rezo Taxi Core pilot smoke runbook
 
-Status: production dry-run completed, mutating import not yet approved.
+Status: production Reunion import completed, pilot taxi not yet created.
 Last update: 2026-06-23.
 Tracking: Rezo #37, APITaxi #18.
 
@@ -30,9 +30,9 @@ found:
 - point `lon=55.45`, `lat=-20.9` matches no town ;
 - no ZUPC covers that point.
 
-This is a blocking prerequisite. ADS creation for a Reunion INSEE code and taxi
-search around a Reunion passenger point cannot work until Reunion towns and at
-least one Rezo ZUPC are loaded.
+This was a blocking prerequisite before the import. ADS creation for a Reunion
+INSEE code and taxi search around a Reunion passenger point could not work until
+Reunion towns and at least one Rezo ZUPC were loaded.
 
 Production preparation performed on 2026-06-23:
 
@@ -52,7 +52,22 @@ Production preparation performed on 2026-06-23:
   `Reunion cadastre source validated: 24 towns` ;
 - post dry-run counters remained `town974=0` and `zupc_rezo=0`.
 
-The real import has not been run yet.
+Production import performed on 2026-06-23 after approval:
+
+- command executed without `--dry-run` ;
+- import output:
+  `Imported 24 Reunion towns and bound ZUPC 949cdf3e-9128-524e-a39f-db91c1ea0cc7 (REZO_REUNION_MVP)` ;
+- post-import counters: `town974=24`, `zupc_allowed=24` ;
+- ZUPC id: `949cdf3e-9128-524e-a39f-db91c1ea0cc7` ;
+- ZUPC name: `REZO_REUNION_MVP` ;
+- missing expected towns: none ;
+- unexpected Reunion towns: none ;
+- invalid geometries: `0` ;
+- point `lon=55.45`, `lat=-20.9` matches town `97411` and the Rezo ZUPC ;
+- point `lon=55.478`, `lat=-21.339` matches town `97416` and the Rezo ZUPC ;
+- point `lon=55.27`, `lat=-21.01` matches town `97415` and the Rezo ZUPC ;
+- `taxi-web`, `taxi-worker`, `taxi-beat`, health, metrics and Celery `pong`
+  remained healthy after import.
 
 ## 2. Minimal core entities
 
@@ -214,9 +229,10 @@ Data rollback:
 
 Next production action:
 
-- obtain explicit approval to run the same command without `--dry-run` ;
-- create the 24 Reunion `Town` rows and the `REZO_REUNION_MVP` ZUPC through the
-  command ;
-- verify point-in-town and point-in-ZUPC coverage ;
-- run `POST /ads` smoke with a controlled 974 INSEE only after the import ;
-- document the import result, row counts and rollback notes.
+- choose the pilot taxi and collect controlled driver, vehicle and ADS data ;
+- run `POST /ads` smoke with a controlled 974 INSEE ;
+- create the pilot driver, vehicle, ADS and taxi through the Rezo service
+  account ;
+- keep `REZO_TAXI_LIVE_ENABLED=0` until the complete driver/passenger smoke
+  succeeds ;
+- document the pilot entity identifiers and rollback notes.
