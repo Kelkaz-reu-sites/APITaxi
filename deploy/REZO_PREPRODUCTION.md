@@ -310,7 +310,11 @@ Reunion cadastre import note, 2026-06-23:
   `REZO_REUNION_MVP` ;
 - Saint-Denis, Saint-Pierre and Saint-Paul test points are covered by a town
   and the Rezo ZUPC ;
-- the next prerequisite is controlled pilot taxi data, not geography.
+- rollbackable `POST /ads` smoke succeeded for `insee=97411` through the Rezo
+  service account, returned HTTP `201`, then rolled back with
+  `ads_smoke_remaining=0` ;
+- the next prerequisite is controlled pilot taxi data, not geography or ADS
+  route acceptance.
 
 ### Generic container deployment
 

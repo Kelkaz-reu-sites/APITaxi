@@ -69,6 +69,19 @@ Production import performed on 2026-06-23 after approval:
 - `taxi-web`, `taxi-worker`, `taxi-beat`, health, metrics and Celery `pong`
   remained healthy after import.
 
+Rollbackable ADS smoke performed on 2026-06-23:
+
+- used service account `rezo-taxi-live-service@rezo.re` with roles `moteur` and
+  `operateur` ;
+- called the real `POST /ads` route through Flask test client with
+  `insee=97411` and a temporary `REZO-SMOKE-974-*` ADS number ;
+- intercepted the endpoint commit, flushed the transaction, then rolled it back ;
+- endpoint returned HTTP `201` ;
+- ADS was visible before rollback and absent after rollback ;
+- `ads_smoke_remaining=0` after the test ;
+- `town974=24`, `zupc_allowed=24`, health, metrics and Celery `pong` stayed
+  valid after the smoke.
+
 ## 2. Minimal core entities
 
 The pilot taxi must be created in this order:
@@ -230,7 +243,6 @@ Data rollback:
 Next production action:
 
 - choose the pilot taxi and collect controlled driver, vehicle and ADS data ;
-- run `POST /ads` smoke with a controlled 974 INSEE ;
 - create the pilot driver, vehicle, ADS and taxi through the Rezo service
   account ;
 - keep `REZO_TAXI_LIVE_ENABLED=0` until the complete driver/passenger smoke
