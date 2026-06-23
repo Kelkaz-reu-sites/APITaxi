@@ -45,11 +45,14 @@ The same `<git-sha>` must be used for the three application services.
 
 ## 3. Environment variables
 
-Use `deploy/env.preproduction.example` as the non-secret template. Store real
-values in the deployment secret store or in a host file with mode `0600`.
+Use `deploy/env.preproduction.example` as the non-secret preproduction template
+and `deploy/env.production.example` as the non-secret VPS production template.
+Store real values in the deployment secret store or in a host file with mode
+`0600`.
 
 Required secrets:
 
+- `POSTGRES_PASSWORD` when the bundled Compose PostgreSQL service is used ;
 - `SECRET_KEY` ;
 - `SECURITY_PASSWORD_SALT` ;
 - `SQLALCHEMY_DATABASE_URI` ;
@@ -184,12 +187,60 @@ docker run --rm \
 If using Compose:
 
 ```bash
-docker compose run --rm taxi-migrate
+docker compose -f docker-compose.production.yml --profile tools run --rm taxi-migrate
 ```
 
 Do not run migrations from a different source commit than the application image.
 
 ## 8. Start or update services
+
+### Compose deployment on the Rezo VPS
+
+The preferred VPS deployment path is `docker-compose.production.yml`. It keeps
+PostgreSQL, Redis, web, worker and beat in one project, does not publish the
+Flask port, and attaches only `taxi-web` to the external `rezo-internal`
+network used by the Rezo Next.js service.
+
+Prepare the host once:
+
+```bash
+sudo install -d -m 0750 -o "$USER" -g "$USER" /etc/rezo-taxi-core
+sudo install -d -m 0750 -o "$USER" -g "$USER" /opt/rezo-taxi-core
+docker network create rezo-internal || true
+```
+
+Copy `deploy/env.production.example` to
+`/etc/rezo-taxi-core/production.env`, replace every placeholder secret, then
+lock permissions:
+
+```bash
+chmod 0600 /etc/rezo-taxi-core/production.env
+```
+
+Build, migrate and start:
+
+```bash
+export REZO_TAXI_CORE_IMAGE_TAG="$(git rev-parse --short HEAD)"
+
+docker compose --env-file /etc/rezo-taxi-core/production.env -f docker-compose.production.yml build
+docker compose --env-file /etc/rezo-taxi-core/production.env -f docker-compose.production.yml --profile tools run --rm taxi-migrate
+docker compose --env-file /etc/rezo-taxi-core/production.env -f docker-compose.production.yml up -d taxi-web taxi-worker taxi-beat
+docker compose --env-file /etc/rezo-taxi-core/production.env -f docker-compose.production.yml ps
+```
+
+Then configure the Rezo Next.js production environment with:
+
+```text
+REZO_TAXI_LIVE_ENABLED=true
+REZO_TAXI_CORE_BASE_URL=http://rezo-taxi-core-web:5000
+REZO_TAXI_CORE_API_KEY=<operator-or-service-api-key>
+REZO_TAXI_CUSTOMER_HASH_SALT=<stable-random-salt>
+```
+
+Restart the Rezo web container after changing these variables and verify the
+server readiness route from the Rezo runbook.
+
+### Generic container deployment
 
 Start or update the three application services from the same commit:
 

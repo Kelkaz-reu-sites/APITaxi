@@ -120,9 +120,16 @@ docker build --target worker -t rezo-taxi-core-worker .
 docker build --target beat -t rezo-taxi-core-beat .
 ```
 
-Preproduction deployment, secrets, backups, healthchecks, incident response and
-rollback are documented in `deploy/REZO_PREPRODUCTION.md`. Use
-`deploy/env.preproduction.example` as the non-secret environment template.
+Production and preproduction deployment, secrets, backups, healthchecks,
+incident response and rollback are documented in `deploy/REZO_PREPRODUCTION.md`.
+Use `deploy/env.preproduction.example` for preproduction and
+`deploy/env.production.example` for the VPS production env template.
+
+The production Compose stack is available in `docker-compose.production.yml`.
+It does not publish the Flask port. The `taxi-web` service joins the external
+Docker network `rezo-internal`, already used by the Rezo Next.js service, so
+Rezo can call `http://rezo-taxi-core-web:5000` internally while browsers keep
+using the public Rezo facade only.
 
 ## Rezo Taxi Core CI
 
