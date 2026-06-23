@@ -268,6 +268,21 @@ When this flag is enabled and the hail operator email is in the allowlist,
 the hail from `received` to `received_by_taxi` and schedules the normal driver
 acceptance timeout. Keep the flag disabled for legacy external operators.
 
+Current Rezo VPS deployment note, 2026-06-23:
+
+- code commit deployed: `3936988c` ;
+- image tag deployed: `3936988c` ;
+- `REZO_TAXI_INTERNAL_OPERATOR_HANDOFF_ENABLED=true` ;
+- allowlisted operator: `rezo-taxi-live-service@rezo.re` ;
+- `taxi-web`, `taxi-worker`, `taxi-beat`, `taxi-postgres` and `taxi-redis`
+  healthy ;
+- `/internal/health` and `/internal/metrics` validated with
+  `X-Internal-Key` ;
+- Celery worker validated with `celery inspect ping` ;
+- Rezo can call `/taxis` from `rezo-web-1` over the private Docker network ;
+- `REZO_TAXI_LIVE_ENABLED=0` remains intentionally set on Rezo until a pilot
+  taxi dataset and driver flow are validated.
+
 ### Generic container deployment
 
 Start or update the three application services from the same commit:
