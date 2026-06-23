@@ -270,8 +270,8 @@ acceptance timeout. Keep the flag disabled for legacy external operators.
 
 Current Rezo VPS deployment note, 2026-06-23:
 
-- code commit deployed: `d0cbc249d` ;
-- image tag deployed: `d0cbc249d` ;
+- code commit deployed: `0e7100e7b` ;
+- image tag deployed: `0e7100e7b` ;
 - `REZO_TAXI_INTERNAL_OPERATOR_HANDOFF_ENABLED=true` ;
 - allowlisted operator: `rezo-taxi-live-service@rezo.re` ;
 - `taxi-web`, `taxi-worker`, `taxi-beat`, `taxi-postgres` and `taxi-redis`
@@ -283,6 +283,16 @@ Current Rezo VPS deployment note, 2026-06-23:
 - `REZO_TAXI_LIVE_ENABLED=0` remains intentionally set on Rezo until a pilot
   taxi dataset and driver flow are validated.
 - next tracking issues: Rezo #37 and APITaxi #18.
+
+Current command deployment note, 2026-06-23:
+
+- VPS repository fast-forwarded from `d0cbc249d` to `0e7100e7b` ;
+- Git remote `origin=https://github.com/Kelkaz-reu-sites/APITaxi.git` added to
+  `/opt/rezo-taxi-core` ;
+- application images rebuilt and services restarted with tag `0e7100e7b` ;
+- Alembic stayed at `8d6592987ce1 (head)` ;
+- `/internal/health`, `/internal/metrics`, Celery `pong` and
+  `flask rezo_seed_pilot_taxi --help` validated after restart.
 
 Pilot smoke prerequisite discovered on 2026-06-23:
 

@@ -14,8 +14,8 @@ runbook `doc/TAXI_LIVE_PILOT_SMOKE.md`.
 
 Current VPS state:
 
-- deployed commit: `d0cbc249d` ;
-- deployed image tag: `d0cbc249d` ;
+- deployed commit: `0e7100e7b` ;
+- deployed image tag: `0e7100e7b` ;
 - service account: `rezo-taxi-live-service@rezo.re` ;
 - service account roles: `moteur`, `operateur` ;
 - internal operator handoff enabled for the Rezo service account ;
@@ -52,6 +52,19 @@ Production preparation performed on 2026-06-23:
 - production dry-run then succeeded:
   `Reunion cadastre source validated: 24 towns` ;
 - post dry-run counters remained `town974=0` and `zupc_rezo=0`.
+
+Production command update performed on 2026-06-23:
+
+- APITaxi fast-forwarded on the VPS from `d0cbc249d` to `0e7100e7b` after a
+  green `Rezo Taxi Core CI` run ;
+- Git remote `origin=https://github.com/Kelkaz-reu-sites/APITaxi.git` added to
+  `/opt/rezo-taxi-core` to avoid future opaque manual syncs ;
+- images `taxi-web`, `taxi-worker` and `taxi-beat` rebuilt and restarted with
+  tag `0e7100e7b` ;
+- Alembic remained at `8d6592987ce1 (head)` ;
+- `taxi-web`, `taxi-worker`, `taxi-beat`, health, metrics and Celery `pong`
+  were valid after restart ;
+- `flask rezo_seed_pilot_taxi --help` was verified inside `taxi-web`.
 
 Production import performed on 2026-06-23 after approval:
 
