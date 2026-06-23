@@ -284,6 +284,15 @@ Current Rezo VPS deployment note, 2026-06-23:
   taxi dataset and driver flow are validated.
 - next tracking issues: Rezo #37 and APITaxi #18.
 
+Pilot smoke prerequisite discovered on 2026-06-23:
+
+- the production database has department `974` ;
+- no `Town` row for Reunion communes is currently loaded ;
+- no ZUPC currently covers the Reunion test point ;
+- a pilot ADS and live search cannot work until Reunion towns and a Rezo ZUPC
+  are imported ;
+- the dedicated runbook is `deploy/REZO_PILOT_SMOKE.md`.
+
 ### Generic container deployment
 
 Start or update the three application services from the same commit:
