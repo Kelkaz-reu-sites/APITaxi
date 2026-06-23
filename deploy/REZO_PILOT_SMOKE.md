@@ -62,13 +62,27 @@ For the MVP, use a permissive Rezo ZUPC covering all Reunion communes. This
 matches the sparse taxi supply and large-radius business rule. Passenger-facing
 Rezo UI must still show approach distance and estimated waiting time.
 
-Preferred approach:
+Selected MVP approach:
 
-- create a deterministic Rezo-specific import path for only Reunion towns ;
-- create or update a ZUPC with id `REZO_REUNION_MVP` ;
+- use the already documented Etalab cadastre source for department 974 ;
+- read `cadastre-974-sections.json.gz`, which contains cadastral section
+  `MultiPolygon` features with a `commune=974xx` property ;
+- dissolve these sections by INSEE code to create one APITaxi `Town` shape per
+  Reunion commune ;
+- create or update a ZUPC named `REZO_REUNION_MVP` ;
+- use the stable technical UUID `949cdf3e-9128-524e-a39f-db91c1ea0cc7` for
+  `ZUPC.zupc_id` ;
 - attach the 24 Reunion towns to that ZUPC ;
-- add a regression test that a Reunion passenger point is covered ;
 - run the import on production only after backup and explicit approval.
+
+Documentation check:
+
+- Rezo `DATA.md` documents Etalab cadastre layers ;
+- global `DATA_SOURCES.md` marks cadastre as integrated ;
+- global `DATA_SOURCES.md` marks `communes-millesime-france` as not integrated,
+  with current coverage through cadastre ;
+- `rn_commune_lareunion` exists but contains road `LineString` features, not
+  town polygons, so it must not be used for APITaxi `Town.shape`.
 
 Legacy APITaxi commands available today:
 
@@ -79,14 +93,43 @@ flask import_zupc --zupc-repo <zupc-repo>
 ```
 
 The legacy path can work, but it may import a national town dataset and depends
-on a ZUPC repository layout. For the pilot, a smaller Rezo-specific import is
-safer and easier to audit.
+on a ZUPC repository layout. For the pilot, the smaller Rezo-specific cadastre
+import is safer and easier to audit.
+
+Rezo command added for this flow:
+
+```bash
+flask rezo_import_reunion_cadastre \
+  --cadastre-sections /imports/cadastre-974-sections.json.gz \
+  --dry-run
+```
+
+Production execution must use a read-only bind mount for the source file and
+must run `--dry-run` first:
+
+```bash
+mkdir -p /opt/rezo-taxi-core/imports
+# Copy cadastre-974-sections.json.gz into /opt/rezo-taxi-core/imports/ first.
+
+docker compose --env-file /etc/rezo-taxi-core/production.env \
+  -f docker-compose.production.yml \
+  run --rm -T \
+  -v /opt/rezo-taxi-core/imports:/imports:ro \
+  taxi-web \
+  flask rezo_import_reunion_cadastre \
+    --cadastre-sections /imports/cadastre-974-sections.json.gz \
+    --dry-run
+```
+
+The mutating command is the same without `--dry-run`. Do not run it before a
+database backup and explicit approval.
 
 Minimum acceptance checks after import:
 
 - `Town.query.filter(Town.insee.like('974%')).count()` returns `24` ;
 - the pilot passenger point is contained in one imported town ;
 - the pilot passenger point is covered by one ZUPC ;
+- the ZUPC is named `REZO_REUNION_MVP` and has `24` allowed towns ;
 - `POST /ads` accepts the pilot ADS INSEE code ;
 - `GET /taxis?lon=...&lat=...` returns an empty list, not an error, before the
   pilot taxi is online.
@@ -150,8 +193,8 @@ Data rollback:
 
 Prepare the Reunion geographic import:
 
-- choose the source dataset for the 24 communes ;
-- implement or script a deterministic APITaxi import for `Town` rows ;
-- create the `REZO_REUNION_MVP` ZUPC ;
-- add tests for point-in-town and point-in-ZUPC coverage ;
+- copy the cadastre sections source into a read-only import directory on the VPS ;
+- run the APITaxi import command in dry-run mode ;
+- create the `REZO_REUNION_MVP` ZUPC through the command ;
+- verify point-in-town and point-in-ZUPC coverage ;
 - document the exact production commands before execution.
