@@ -270,8 +270,8 @@ acceptance timeout. Keep the flag disabled for legacy external operators.
 
 Current Rezo VPS deployment note, 2026-06-23:
 
-- code commit deployed: `3936988c` ;
-- image tag deployed: `3936988c` ;
+- code commit deployed: `d0cbc249d` ;
+- image tag deployed: `d0cbc249d` ;
 - `REZO_TAXI_INTERNAL_OPERATOR_HANDOFF_ENABLED=true` ;
 - allowlisted operator: `rezo-taxi-live-service@rezo.re` ;
 - `taxi-web`, `taxi-worker`, `taxi-beat`, `taxi-postgres` and `taxi-redis`
@@ -292,6 +292,19 @@ Pilot smoke prerequisite discovered on 2026-06-23:
 - a pilot ADS and live search cannot work until Reunion towns and a Rezo ZUPC
   are imported ;
 - the dedicated runbook is `deploy/REZO_PILOT_SMOKE.md`.
+
+Reunion cadastre dry-run note, 2026-06-23:
+
+- pre-deploy/pre-import backup:
+  `/var/backups/rezo-taxi-core/apitaxi-predeploy-d0cbc24-20260623T133839Z.dump` ;
+- source file on VPS:
+  `/opt/rezo-taxi-core/imports/cadastre-974-sections.json.gz` ;
+- checksum:
+  `0a2e789f5249f12167175ef0055d11b6a045e3cdc1aef8d5f3c94e0b630c774e` ;
+- dry-run command succeeded with
+  `Reunion cadastre source validated: 24 towns` ;
+- post dry-run counters stayed `town974=0` and `zupc_rezo=0` ;
+- the mutating import is intentionally pending explicit approval.
 
 ### Generic container deployment
 

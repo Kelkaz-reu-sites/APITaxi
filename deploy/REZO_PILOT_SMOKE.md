@@ -1,6 +1,6 @@
 # Rezo Taxi Core pilot smoke runbook
 
-Status: preparation runbook, no production mutation approved yet.
+Status: production dry-run completed, mutating import not yet approved.
 Last update: 2026-06-23.
 Tracking: Rezo #37, APITaxi #18.
 
@@ -13,8 +13,8 @@ runbook `doc/TAXI_LIVE_PILOT_SMOKE.md`.
 
 Current VPS state:
 
-- deployed commit: `3936988c` ;
-- deployed image tag: `3936988c` ;
+- deployed commit: `d0cbc249d` ;
+- deployed image tag: `d0cbc249d` ;
 - service account: `rezo-taxi-live-service@rezo.re` ;
 - service account roles: `moteur`, `operateur` ;
 - internal operator handoff enabled for the Rezo service account ;
@@ -22,7 +22,8 @@ Current VPS state:
 - Rezo calls `http://rezo-taxi-core-web:5000` over the private Docker network ;
 - Rezo still keeps `REZO_TAXI_LIVE_ENABLED=0`.
 
-Read-only production inspection on 2026-06-23 found:
+Read-only production inspection before the cadastre dry-run on 2026-06-23
+found:
 
 - department `974` exists ;
 - no `Town` row with an INSEE code starting with `974` exists ;
@@ -32,6 +33,26 @@ Read-only production inspection on 2026-06-23 found:
 This is a blocking prerequisite. ADS creation for a Reunion INSEE code and taxi
 search around a Reunion passenger point cannot work until Reunion towns and at
 least one Rezo ZUPC are loaded.
+
+Production preparation performed on 2026-06-23:
+
+- database backup created before deploy/import preparation:
+  `/var/backups/rezo-taxi-core/apitaxi-predeploy-d0cbc24-20260623T133839Z.dump` ;
+- APITaxi deployed from `3936988c` to CI-green commit `d0cbc249d` ;
+- Alembic checked at `8d6592987ce1 (head)` before service restart ;
+- `taxi-web`, `taxi-worker` and `taxi-beat` returned healthy ;
+- `/internal/health`, `/internal/metrics` and Celery `inspect ping` passed ;
+- `cadastre-974-sections.json.gz` copied to
+  `/opt/rezo-taxi-core/imports/` with checksum
+  `0a2e789f5249f12167175ef0055d11b6a045e3cdc1aef8d5f3c94e0b630c774e` ;
+- first dry-run attempt found the file unreadable by the non-root container
+  user, so import directory permissions were relaxed to `0755` and source file
+  permissions to `0644` ;
+- production dry-run then succeeded:
+  `Reunion cadastre source validated: 24 towns` ;
+- post dry-run counters remained `town974=0` and `zupc_rezo=0`.
+
+The real import has not been run yet.
 
 ## 2. Minimal core entities
 
@@ -191,10 +212,11 @@ Data rollback:
 
 ## 7. Next implementation task
 
-Prepare the Reunion geographic import:
+Next production action:
 
-- copy the cadastre sections source into a read-only import directory on the VPS ;
-- run the APITaxi import command in dry-run mode ;
-- create the `REZO_REUNION_MVP` ZUPC through the command ;
+- obtain explicit approval to run the same command without `--dry-run` ;
+- create the 24 Reunion `Town` rows and the `REZO_REUNION_MVP` ZUPC through the
+  command ;
 - verify point-in-town and point-in-ZUPC coverage ;
-- document the exact production commands before execution.
+- run `POST /ads` smoke with a controlled 974 INSEE only after the import ;
+- document the import result, row counts and rollback notes.
