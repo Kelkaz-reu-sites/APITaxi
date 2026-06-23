@@ -125,7 +125,9 @@ incident response and rollback are documented in `deploy/REZO_PREPRODUCTION.md`.
 Use `deploy/env.preproduction.example` for preproduction and
 `deploy/env.production.example` for the VPS production env template.
 The first real Rezo Taxi Live pilot and required Reunion town/ZUPC data are
-prepared in `deploy/REZO_PILOT_SMOKE.md`.
+prepared in `deploy/REZO_PILOT_SMOKE.md`. That runbook also records the
+rollbackable production smoke validations for Reunion ADS creation and the
+full APITaxi driver/vehicle/ADS/taxi entity chain.
 
 The production Compose stack is available in `docker-compose.production.yml`.
 It does not publish the Flask port. The `taxi-web` service joins the external

@@ -1,6 +1,7 @@
 # Rezo Taxi Core pilot smoke runbook
 
-Status: production Reunion import completed, pilot taxi not yet created.
+Status: production Reunion import and rollbackable APITaxi entity-chain smoke
+completed, real pilot taxi not yet created.
 Last update: 2026-06-23.
 Tracking: Rezo #37, APITaxi #18.
 
@@ -81,6 +82,31 @@ Rollbackable ADS smoke performed on 2026-06-23:
 - `ads_smoke_remaining=0` after the test ;
 - `town974=24`, `zupc_allowed=24`, health, metrics and Celery `pong` stayed
   valid after the smoke.
+
+Rollbackable full entity-chain smoke performed on 2026-06-23:
+
+- used the same service account `rezo-taxi-live-service@rezo.re` with roles
+  `moteur` and `operateur` ;
+- called the real Flask routes in this order: `POST /drivers`,
+  `POST /vehicles`, `POST /ads`, `POST /taxis`, then `GET /taxis/{taxi_id}` ;
+- used temporary smoke-only identifiers for the vehicle and taxi, then rolled
+  the SQLAlchemy transaction back ;
+- route results: driver HTTP `201`, vehicle HTTP `201`, ADS HTTP `201`, taxi
+  HTTP `201`, taxi detail HTTP `200` ;
+- `commit_calls_intercepted=4` ;
+- entities visible before rollback: driver `1`, vehicle `1`, vehicle
+  description `1`, ADS `1`, taxi `1` ;
+- entities remaining after rollback: driver `0`, vehicle `0`, ADS `0`,
+  taxi `0` ;
+- exact post-smoke cleanup checks confirmed no residual smoke driver, ADS,
+  vehicle or taxi row ;
+- `taxi-web`, `taxi-worker`, `taxi-beat`, health, metrics and Celery `pong`
+  stayed healthy after the smoke.
+
+This validates the APITaxi core entity creation chain for a Rezo pilot taxi.
+The remaining prerequisite is now real controlled pilot data and the Rezo
+transporter `taxi_core_id` link, not the APITaxi driver/vehicle/ADS/taxi route
+chain itself.
 
 ## 2. Minimal core entities
 
@@ -243,8 +269,9 @@ Data rollback:
 Next production action:
 
 - choose the pilot taxi and collect controlled driver, vehicle and ADS data ;
-- create the pilot driver, vehicle, ADS and taxi through the Rezo service
-  account ;
+- create persistent pilot driver, vehicle, ADS and taxi rows through the Rezo
+  service account only after the real data has been confirmed ;
+- link the returned `taxi_id` to the Rezo transporter as `taxi_core_id` ;
 - keep `REZO_TAXI_LIVE_ENABLED=0` until the complete driver/passenger smoke
   succeeds ;
 - document the pilot entity identifiers and rollback notes.

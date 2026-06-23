@@ -313,8 +313,14 @@ Reunion cadastre import note, 2026-06-23:
 - rollbackable `POST /ads` smoke succeeded for `insee=97411` through the Rezo
   service account, returned HTTP `201`, then rolled back with
   `ads_smoke_remaining=0` ;
-- the next prerequisite is controlled pilot taxi data, not geography or ADS
-  route acceptance.
+- rollbackable full entity-chain smoke succeeded through the real routes
+  `POST /drivers`, `POST /vehicles`, `POST /ads`, `POST /taxis` and
+  `GET /taxis/{taxi_id}` with HTTP `201`, `201`, `201`, `201` and `200` ;
+- after rollback, exact cleanup checks confirmed no residual smoke driver, ADS,
+  vehicle or taxi row ;
+- the next prerequisite is controlled real pilot taxi data and the Rezo
+  transporter `taxi_core_id` link, not geography, ADS route acceptance or the
+  APITaxi entity creation chain.
 
 ### Generic container deployment
 
