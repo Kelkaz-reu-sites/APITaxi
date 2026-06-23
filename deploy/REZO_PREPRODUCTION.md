@@ -187,10 +187,13 @@ docker run --rm \
 If using Compose:
 
 ```bash
-docker compose -f docker-compose.production.yml --profile tools run --rm taxi-migrate
+docker compose -f docker-compose.production.yml --profile tools run --rm -T taxi-migrate
 ```
 
 Do not run migrations from a different source commit than the application image.
+Use `-T` when running the command from SSH, a heredoc or a non-interactive
+script: without it, `docker compose run` can consume stdin and prevent following
+shell commands from running.
 
 ## 8. Start or update services
 
@@ -223,7 +226,7 @@ Build, migrate and start:
 export REZO_TAXI_CORE_IMAGE_TAG="$(git rev-parse --short HEAD)"
 
 docker compose --env-file /etc/rezo-taxi-core/production.env -f docker-compose.production.yml build
-docker compose --env-file /etc/rezo-taxi-core/production.env -f docker-compose.production.yml --profile tools run --rm taxi-migrate
+docker compose --env-file /etc/rezo-taxi-core/production.env -f docker-compose.production.yml --profile tools run --rm -T taxi-migrate
 docker compose --env-file /etc/rezo-taxi-core/production.env -f docker-compose.production.yml up -d taxi-web taxi-worker taxi-beat
 docker compose --env-file /etc/rezo-taxi-core/production.env -f docker-compose.production.yml ps
 ```
@@ -285,21 +288,22 @@ curl -fsS \
 Worker:
 
 ```bash
-docker exec rezo-taxi-core-worker \
+docker compose --env-file /etc/rezo-taxi-core/production.env -f docker-compose.production.yml exec -T taxi-worker \
   celery --app=APITaxi2.celery_worker inspect ping --timeout=5
 ```
 
 Database:
 
 ```bash
-docker exec rezo-taxi-core-web \
+docker compose --env-file /etc/rezo-taxi-core/production.env -f docker-compose.production.yml exec -T taxi-web \
   bash -lc "cd APITaxi_models2 && alembic current"
 ```
 
 Redis:
 
 ```bash
-redis-cli -u "$REDIS_URL" ping
+docker compose --env-file /etc/rezo-taxi-core/production.env -f docker-compose.production.yml exec -T taxi-redis \
+  redis-cli ping
 ```
 
 Expected result:
