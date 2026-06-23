@@ -234,7 +234,7 @@ docker compose --env-file /etc/rezo-taxi-core/production.env -f docker-compose.p
 Then configure the Rezo Next.js production environment with:
 
 ```text
-REZO_TAXI_LIVE_ENABLED=true
+REZO_TAXI_LIVE_ENABLED=0
 REZO_TAXI_CORE_BASE_URL=http://rezo-taxi-core-web:5000
 REZO_TAXI_CORE_API_KEY=<operator-or-service-api-key>
 REZO_TAXI_CUSTOMER_HASH_SALT=<stable-random-salt>
@@ -242,6 +242,24 @@ REZO_TAXI_CUSTOMER_HASH_SALT=<stable-random-salt>
 
 Restart the Rezo web container after changing these variables and verify the
 server readiness route from the Rezo runbook.
+
+For the initial VPS connection, keep `REZO_TAXI_LIVE_ENABLED=0` until a pilot
+taxi is attached and the operator callback behavior is validated. The internal
+API key used by Rezo is the APITaxi `user.apikey` value, not
+`operator_api_key`. `operator_api_key` is only the optional outbound header
+value sent by APITaxi to an operator callback endpoint.
+
+Current production service account:
+
+- email: `rezo-taxi-live-service@rezo.re` ;
+- roles: `moteur`, `operateur` ;
+- secret storage: APITaxi database + `/opt/rezo/web/.env.local` only ;
+- never print the key in logs, issues, documentation or shell history.
+
+Before enabling the public live flow, either configure a Rezo operator callback
+endpoint in `hail_endpoint_production` or adapt the internal APITaxi flow to
+skip that external callback. If the endpoint is empty or failing, APITaxi marks
+the hail as `failure` after `send_request_operator`.
 
 ### Generic container deployment
 
