@@ -282,6 +282,7 @@ Current Rezo VPS deployment note, 2026-06-23:
 - Rezo can call `/taxis` from `rezo-web-1` over the private Docker network ;
 - `REZO_TAXI_LIVE_ENABLED=0` remains intentionally set on Rezo until a pilot
   taxi dataset and driver flow are validated.
+- next tracking issues: Rezo #37 and APITaxi #18.
 
 ### Generic container deployment
 
