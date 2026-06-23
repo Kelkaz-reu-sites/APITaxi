@@ -318,6 +318,9 @@ Reunion cadastre import note, 2026-06-23:
   `GET /taxis/{taxi_id}` with HTTP `201`, `201`, `201`, `201` and `200` ;
 - after rollback, exact cleanup checks confirmed no residual smoke driver, ADS,
   vehicle or taxi row ;
+- `flask rezo_seed_pilot_taxi --pilot-file <pilot.json>` is now available to
+  replay that same route chain from a real pilot JSON file, in rollback mode by
+  default and with persistence only when `--apply` is passed ;
 - the next prerequisite is controlled real pilot taxi data and the Rezo
   transporter `taxi_core_id` link, not geography, ADS route acceptance or the
   APITaxi entity creation chain.

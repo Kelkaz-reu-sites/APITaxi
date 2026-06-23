@@ -131,6 +131,44 @@ The pilot taxi must be created in this order:
 The returned `taxi_id` must be linked in Rezo as the transporter's
 `taxi_core_id`.
 
+Pilot seed command added after the rollbackable entity-chain smoke:
+
+```bash
+flask rezo_seed_pilot_taxi --pilot-file <pilot.json>
+```
+
+The command:
+
+- reads a JSON file shaped like `deploy/rezo-pilot-taxi.example.json` ;
+- uses the APITaxi service account email, not an API key argument ;
+- checks that the service account has roles `moteur` and `operateur` ;
+- validates that the pilot ADS town exists and is attached to at least one
+  ZUPC ;
+- calls the real APITaxi routes `POST /drivers`, `POST /vehicles`,
+  `POST /ads`, `POST /taxis`, optional `PUT /taxis/{taxi_id}`, then
+  `GET /taxis/{taxi_id}` ;
+- defaults to rollback mode and leaves the database unchanged ;
+- persists only when `--apply` is explicitly provided ;
+- prints a sanitized JSON summary with statuses and `taxi_id`, but never prints
+  the API key.
+
+Production dry-run example:
+
+```bash
+docker compose --env-file /etc/rezo-taxi-core/production.env \
+  -f docker-compose.production.yml \
+  run --rm -T \
+  -v /opt/rezo-taxi-core/imports:/imports:ro \
+  taxi-web \
+  flask rezo_seed_pilot_taxi \
+    --pilot-file /imports/rezo-pilot-taxi.json
+```
+
+After the dry-run succeeds and the pilot data has been approved, the mutating
+command is the same with `--apply`. Store the real pilot JSON outside Git with
+restrictive permissions, and record the returned `taxi_id` in Rezo as
+`taxi_core_id`.
+
 ## 3. Geographic prerequisite
 
 For the MVP, use a permissive Rezo ZUPC covering all Reunion communes. This
@@ -269,8 +307,13 @@ Data rollback:
 Next production action:
 
 - choose the pilot taxi and collect controlled driver, vehicle and ADS data ;
+- create a real pilot JSON from `deploy/rezo-pilot-taxi.example.json` and keep
+  it outside Git ;
+- run `flask rezo_seed_pilot_taxi --pilot-file <pilot.json>` first in rollback
+  mode ;
 - create persistent pilot driver, vehicle, ADS and taxi rows through the Rezo
-  service account only after the real data has been confirmed ;
+  service account with `--apply` only after the real data and dry-run summary
+  have been confirmed ;
 - link the returned `taxi_id` to the Rezo transporter as `taxi_core_id` ;
 - keep `REZO_TAXI_LIVE_ENABLED=0` until the complete driver/passenger smoke
   succeeds ;

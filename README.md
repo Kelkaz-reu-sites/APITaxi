@@ -128,6 +128,9 @@ The first real Rezo Taxi Live pilot and required Reunion town/ZUPC data are
 prepared in `deploy/REZO_PILOT_SMOKE.md`. That runbook also records the
 rollbackable production smoke validations for Reunion ADS creation and the
 full APITaxi driver/vehicle/ADS/taxi entity chain.
+Use `deploy/rezo-pilot-taxi.example.json` as the placeholder format for pilot
+taxi data and `flask rezo_seed_pilot_taxi --pilot-file <path>` to validate the
+pilot seed in rollback mode before any `--apply` run.
 
 The production Compose stack is available in `docker-compose.production.yml`.
 It does not publish the Flask port. The `taxi-web` service joins the external

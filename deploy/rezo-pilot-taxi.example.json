@@ -1,0 +1,36 @@
+{
+  "driver": {
+    "first_name": "PILOT_FIRST_NAME",
+    "last_name": "PILOT_LAST_NAME",
+    "birth_date": null,
+    "professional_licence": "PILOT_PROFESSIONAL_LICENCE",
+    "departement": {
+      "numero": "974"
+    }
+  },
+  "vehicle": {
+    "licence_plate": "AA-000-AA",
+    "constructor": "PILOT_CONSTRUCTOR",
+    "model": "PILOT_MODEL",
+    "engine": "PILOT_ENGINE",
+    "color": "PILOT_COLOR",
+    "nb_seats": 4,
+    "credit_card_accepted": true,
+    "wifi": false,
+    "baby_seat": false,
+    "bike_accepted": false,
+    "pet_accepted": false,
+    "vasp_handicap": false
+  },
+  "ads": {
+    "numero": "PILOT_ADS_NUMBER",
+    "insee": "97411",
+    "owner_type": "individual",
+    "owner_name": "PILOT_ADS_OWNER",
+    "category": "PILOT"
+  },
+  "taxi": {
+    "status": "off",
+    "radius": 5000
+  }
+}
