@@ -211,7 +211,9 @@ for _env_var, _alt_name, _env_type in (
     ('FAKE_TAXI_ID', None, parse_env_bool),
     ('HAIL_TAXI_VEHICLE_DETAILS', None, parse_env_list(int)),
 ):
-    _val = os.getenv(_alt_name) if _alt_name else os.getenv(_env_var)
+    _val = os.getenv(_env_var)
+    if _alt_name and os.getenv(_alt_name):
+        _val = os.getenv(_alt_name)
     if not _val:
         continue
 
