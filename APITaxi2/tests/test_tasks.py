@@ -11,6 +11,7 @@ from APITaxi_models2.unittest.factories import (
     HailFactory,
     TaxiFactory,
     TownFactory,
+    UserFactory,
     VehicleFactory,
     VehicleDescriptionFactory,
     ZUPCFactory,
@@ -165,6 +166,70 @@ class TestSendRequestOperator:
         assert hail.transition_log[-1]['to_status'] == 'failure'
         assert hail.transition_log[-1]['reason'] is not None
         assert hail.transition_log[-1]['user'] is None
+
+    def test_rezo_internal_operator_handoff(self, app):
+        app.config['REZO_TAXI_INTERNAL_OPERATOR_HANDOFF_ENABLED'] = True
+        app.config['REZO_TAXI_INTERNAL_OPERATOR_EMAILS'] = ['rezo-taxi-live-service@rezo.re']
+        app.config['REZO_TAXI_DRIVER_ACCEPTANCE_TIMEOUT_SECONDS'] = 123
+
+        operator = UserFactory(email='rezo-taxi-live-service@rezo.re')
+        vehicle = VehicleFactory(descriptions=[])
+        vehicle_description = VehicleDescriptionFactory(
+            added_by=operator,
+            vehicle=vehicle,
+            status='answering',
+        )
+        taxi = TaxiFactory(added_by=operator, vehicle=vehicle)
+        hail = HailFactory(operateur=operator, taxi=taxi, status='received')
+        hail_id = hail.id
+        vehicle_description_id = vehicle_description.id
+
+        with mock.patch('requests.post') as mocked_requests_post, mock.patch.object(
+            tasks.operators.handle_hail_timeout, 'apply_async'
+        ) as mocked_handle_hail_timeout:
+            ret = tasks.send_request_operator(hail.id, None, None, None)
+
+        assert ret is True
+        assert mocked_requests_post.call_count == 0
+        mocked_handle_hail_timeout.assert_called_once_with(
+            args=(hail_id, operator.id),
+            kwargs={
+                'initial_hail_status': 'received_by_taxi',
+                'new_hail_status': 'timeout_taxi',
+                'new_taxi_status': 'off',
+            },
+            countdown=123,
+        )
+
+        hail = db.session.get(Hail, hail_id)
+        assert hail.status == 'received_by_taxi'
+        assert hail.transition_log[-1]['from_status'] == 'received'
+        assert hail.transition_log[-1]['to_status'] == 'received_by_taxi'
+        assert hail.transition_log[-1]['reason'] == 'Rezo internal operator handoff'
+
+        vehicle_description = db.session.get(VehicleDescription, vehicle_description_id)
+        assert vehicle_description.status == 'answering'
+        assert len(app.redis.zrange('hail:%s' % hail.id, 0, -1)) == 1
+
+    def test_rezo_internal_operator_handoff_requires_allowed_operator(self, app):
+        app.config['REZO_TAXI_INTERNAL_OPERATOR_HANDOFF_ENABLED'] = True
+        app.config['REZO_TAXI_INTERNAL_OPERATOR_EMAILS'] = ['rezo-taxi-live-service@rezo.re']
+
+        hail = HailFactory(status='received')
+
+        def requests_post(url, json=None, headers=None, timeout=None):
+            resp = requests.Response()
+            resp.status_code = 200
+            resp._content = json_module.dumps({'data': [{}]}).encode('utf8')
+            return resp
+
+        with mock.patch('requests.post', requests_post), mock.patch.object(
+            tasks.operators.handle_hail_timeout, 'apply_async'
+        ):
+            ret = tasks.send_request_operator(hail.id, 'http://127.0.0.1:9876', None, None)
+
+        assert ret is True
+        assert hail.status == 'received_by_operator'
 
     def test_ok(self, app):
         """Hail is successfully sent to the operator API, which returns the

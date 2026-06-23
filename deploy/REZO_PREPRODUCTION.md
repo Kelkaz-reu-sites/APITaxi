@@ -256,10 +256,17 @@ Current production service account:
 - secret storage: APITaxi database + `/opt/rezo/web/.env.local` only ;
 - never print the key in logs, issues, documentation or shell history.
 
-Before enabling the public live flow, either configure a Rezo operator callback
-endpoint in `hail_endpoint_production` or adapt the internal APITaxi flow to
-skip that external callback. If the endpoint is empty or failing, APITaxi marks
-the hail as `failure` after `send_request_operator`.
+For the Rezo internal flow, set:
+
+```text
+REZO_TAXI_INTERNAL_OPERATOR_HANDOFF_ENABLED=true
+REZO_TAXI_INTERNAL_OPERATOR_EMAILS=rezo-taxi-live-service@rezo.re
+```
+
+When this flag is enabled and the hail operator email is in the allowlist,
+`send_request_operator` does not call an external operator endpoint. It moves
+the hail from `received` to `received_by_taxi` and schedules the normal driver
+acceptance timeout. Keep the flag disabled for legacy external operators.
 
 ### Generic container deployment
 

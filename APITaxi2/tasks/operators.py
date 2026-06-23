@@ -19,6 +19,59 @@ def _request_exception_failure_reason(exc):
     return 'Unable to contact operator API.'
 
 
+def _schedule_timeout_for_current_status(hail, vehicle_description_added_by_id):
+    timeout = hail_state_machine.timeout_for_status(hail.status)
+    if not timeout:
+        return
+
+    handle_hail_timeout.apply_async(
+        args=(hail.id, vehicle_description_added_by_id),
+        kwargs={
+            'initial_hail_status': timeout.initial_hail_status,
+            'new_hail_status': timeout.new_hail_status,
+            'new_taxi_status': timeout.new_taxi_status,
+        },
+        countdown=timeout.countdown(current_app.config),
+    )
+
+
+def _uses_internal_operator_handoff(hail):
+    if not current_app.config.get('REZO_TAXI_INTERNAL_OPERATOR_HANDOFF_ENABLED'):
+        return False
+
+    operator_emails = current_app.config.get('REZO_TAXI_INTERNAL_OPERATOR_EMAILS') or []
+    return hail.operateur and hail.operateur.email in operator_emails
+
+
+def _handoff_to_internal_rezo_operator(hail, vehicle_description):
+    observability.log_event(
+        current_app.logger,
+        'info',
+        'operator_internal_handoff',
+        hail_id=hail.id,
+        operator_id=hail.operateur_id,
+    )
+    redis_backend.log_hail(
+        hail_id=hail.id,
+        http_method='internal operator handoff',
+        request_payload={'mode': 'rezo_internal_operator_handoff'},
+        hail_initial_status=hail.status,
+        request_user=None,
+        response_payload={'status': 'received_by_taxi'},
+        response_status_code=200,
+        hail_final_status='received_by_taxi',
+    )
+    processes.change_status(
+        hail,
+        'received_by_taxi',
+        reason='Rezo internal operator handoff',
+    )
+    vehicle_description_added_by_id = vehicle_description.added_by_id
+    db.session.commit()
+    _schedule_timeout_for_current_status(hail, vehicle_description_added_by_id)
+    return True
+
+
 @shared_task(name='handle_hail_timeout')
 def handle_hail_timeout(hail_id, operateur_id,
                         initial_hail_status, new_hail_status,
@@ -155,6 +208,9 @@ def send_request_operator(hail_id, endpoint, operator_header_name, operator_api_
         )
         db.session.commit()
         return False
+
+    if _uses_internal_operator_handoff(hail):
+        return _handoff_to_internal_rezo_operator(hail, vehicle_description)
 
     schema = schemas.DataHailSchema()
     # The other parameters of dump are None because we do not want to provide
@@ -321,15 +377,6 @@ def send_request_operator(hail_id, endpoint, operator_header_name, operator_api_
 
     # If hail is still "received_by_operator" and not "received_by_taxi" after
     # the configured delay, timeout.
-    timeout = hail_state_machine.timeout_for_status(hail.status)
-    handle_hail_timeout.apply_async(
-        args=(hail.id, vehicle_description_added_by_id),
-        kwargs={
-            'initial_hail_status': timeout.initial_hail_status,
-            'new_hail_status': timeout.new_hail_status,
-            'new_taxi_status': timeout.new_taxi_status,
-        },
-        countdown=timeout.countdown(current_app.config),
-    )
+    _schedule_timeout_for_current_status(hail, vehicle_description_added_by_id)
 
     return True

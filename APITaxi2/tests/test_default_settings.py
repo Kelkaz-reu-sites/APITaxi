@@ -9,6 +9,8 @@ def reload_default_settings(monkeypatch, **env):
         'CELERY_BROKER_URL',
         'CELERY_RESULT_BACKEND',
         'REDIS_DIRECT_URI',
+        'REZO_TAXI_INTERNAL_OPERATOR_HANDOFF_ENABLED',
+        'REZO_TAXI_INTERNAL_OPERATOR_EMAILS',
     }
     for key in keys:
         monkeypatch.delenv(key, raising=False)
@@ -49,3 +51,17 @@ def test_cloud_aliases_override_standard_env_when_present(monkeypatch):
     assert settings.REDIS_URL == 'redis://alias-redis/0'
     assert settings.CELERY_BROKER_URL == 'redis://alias-redis/0'
     assert settings.CELERY_RESULT_BACKEND == 'redis://alias-redis/0'
+
+
+def test_rezo_internal_operator_handoff_env_is_loaded(monkeypatch):
+    settings = reload_default_settings(
+        monkeypatch,
+        REZO_TAXI_INTERNAL_OPERATOR_HANDOFF_ENABLED='true',
+        REZO_TAXI_INTERNAL_OPERATOR_EMAILS='rezo-taxi-live-service@rezo.re, other@rezo.re',
+    )
+
+    assert settings.REZO_TAXI_INTERNAL_OPERATOR_HANDOFF_ENABLED is True
+    assert settings.REZO_TAXI_INTERNAL_OPERATOR_EMAILS == [
+        'rezo-taxi-live-service@rezo.re',
+        'other@rezo.re',
+    ]
