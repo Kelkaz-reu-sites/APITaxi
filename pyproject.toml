@@ -23,8 +23,10 @@ dynamic = ["dependencies"]
 
 [project.optional-dependencies]
 tests = [
-    # passlib imports pkg_resources through Flask-Security. Keep this test-only
-    # pin until the dependency chain is upgraded away from pkg_resources.
+    # Was needed because passlib imported pkg_resources through Flask-Security.
+    # Flask-Security 5.7.0 replaced passlib with libpass, so this test-only pin
+    # may now be droppable — left in place because lifting it is a separate
+    # change deserving its own verification.
     'setuptools<81',
     'pytest>=8.3.1',
     'pytest-celery',
