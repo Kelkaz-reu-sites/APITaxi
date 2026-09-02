@@ -74,7 +74,13 @@ def test_hail_lifecycle_path(operateur, moteur):
     db.session.commit()
 
 
-def test_driver_refusal_sets_taxi_off(operateur, moteur):
+def test_driver_refusal_keeps_taxi_available(operateur, moteur):
+    """Rezo D18: refusing a ride must not cost the driver their availability.
+
+    A driver refuses because the pickup is too far, not because they are ending
+    their shift. The hail is redistributed to another taxi either way, and the
+    refusing driver is excluded from that redistribution.
+    """
     hail = HailFactory(
         added_by=moteur.user,
         operateur=operateur.user,
@@ -91,7 +97,7 @@ def test_driver_refusal_sets_taxi_off(operateur, moteur):
 
     assert result.changed is True
     assert hail.status == 'declined_by_taxi'
-    assert vehicle_description.status == 'off'
+    assert vehicle_description.status == 'free'
     db.session.commit()
 
 
@@ -239,11 +245,17 @@ def test_timeout_transition_sets_status_and_taxi_side_effect(operateur, moteur):
 
 
 def test_timeout_specs_use_rezo_configuration(app):
+    """Rezo D19: silence pauses the driver, it does not end their shift.
+
+    An unanswered hail signals a driver momentarily unreachable — phone in a
+    pocket, hands on the wheel. They stop receiving hails without leaving the
+    service, and must explicitly go available again.
+    """
     timeout = hail_state_machine.timeout_for_status('received_by_taxi')
 
     assert timeout.initial_hail_status == 'received_by_taxi'
     assert timeout.new_hail_status == 'timeout_taxi'
-    assert timeout.new_taxi_status == 'off'
+    assert timeout.new_taxi_status == 'occupied'
     assert timeout.countdown(app.config) == 120
 
     assert hail_state_machine.timeout_for_status('finished') is None

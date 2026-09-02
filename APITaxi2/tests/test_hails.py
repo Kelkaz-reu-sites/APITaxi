@@ -77,8 +77,14 @@ class TestGetHailDetails:
             assert resp.json['data'][0]['operateur'] == 'chauffeur professionnel'
             assert resp.json['data'][0]['taxi']['crowfly_distance']
             assert resp.json['data'][0]['taxi']['last_update']
-            assert resp.json['data'][0]['taxi']['position']['lon']
-            assert resp.json['data'][0]['taxi']['position']['lat']
+
+            # Rezo D10 and D11: the exact position is only exposed during the
+            # approach, once the customer has confirmed and until pickup.
+            # Distance and freshness stay available throughout. Detailed
+            # coverage in tests/rezo/test_hail_privacy.py.
+            approaching = status == 'accepted_by_customer'
+            assert bool(resp.json['data'][0]['taxi']['position']['lon']) == approaching
+            assert bool(resp.json['data'][0]['taxi']['position']['lat']) == approaching
 
             # For backward compatibility, taxi_id is not returned from GET
             # /hails/:id, but the field is required to create a taxi with POST
@@ -349,7 +355,8 @@ class TestEditHail:
                 kwargs={
                     'initial_hail_status': 'received_by_taxi',
                     'new_hail_status': 'timeout_taxi',
-                    'new_taxi_status': 'off'
+                    # Rezo D19: an unanswered hail pauses the driver.
+                    'new_taxi_status': 'occupied'
                 },
                 countdown=120
             )
@@ -386,7 +393,8 @@ class TestEditHail:
                     'new_hail_status': 'timeout_accepted_by_customer',
                     'new_taxi_status': 'occupied'
                 },
-                countdown=60 * 30
+                # Rezo D21: an approach may legitimately last up to one hour.
+                countdown=60 * 60
             )
 
         # When customer is on board for more than 2 hours, timeout is raised.

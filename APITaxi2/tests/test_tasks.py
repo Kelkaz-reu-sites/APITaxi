@@ -196,7 +196,8 @@ class TestSendRequestOperator:
             kwargs={
                 'initial_hail_status': 'received_by_taxi',
                 'new_hail_status': 'timeout_taxi',
-                'new_taxi_status': 'off',
+                # Rezo D19: an unanswered hail pauses the driver.
+                'new_taxi_status': 'occupied',
             },
             countdown=123,
         )

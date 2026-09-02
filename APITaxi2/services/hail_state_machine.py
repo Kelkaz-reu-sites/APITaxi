@@ -46,10 +46,15 @@ TRANSITIONS = {
 
 
 # Keys are the new hail status, values the new taxi status.
+#
+# Rezo D18: an explicit refusal leaves the taxi available. Refusing a ride that
+# is too far away must not cost the driver their availability; upstream le.taxi
+# set 'off' here. The hail is redistributed to another taxi either way, and the
+# refusing driver is excluded from that redistribution.
 TAXI_STATUS_BY_HAIL_STATUS = {
     'accepted_by_customer': 'oncoming',
     'declined_by_customer': 'free',
-    'declined_by_taxi': 'off',
+    'declined_by_taxi': 'free',
     'customer_on_board': 'occupied',
     'incident_taxi': 'free',
     'incident_customer': 'free',
@@ -81,10 +86,14 @@ TIMEOUTS_BY_STATUS = {
         new_taxi_status='free',
         countdown_config_key='REZO_TAXI_OPERATOR_ACK_TIMEOUT_SECONDS',
     ),
+    # Rezo D19: silence pauses the driver, it does not end their shift. An
+    # unanswered hail signals a driver momentarily unreachable, so they stop
+    # receiving hails without leaving the service, and go available again
+    # explicitly. Upstream le.taxi set 'off' here.
     'received_by_taxi': TimeoutSpec(
         initial_hail_status='received_by_taxi',
         new_hail_status='timeout_taxi',
-        new_taxi_status='off',
+        new_taxi_status='occupied',
         countdown_config_key='REZO_TAXI_DRIVER_ACCEPTANCE_TIMEOUT_SECONDS',
     ),
     'accepted_by_taxi': TimeoutSpec(

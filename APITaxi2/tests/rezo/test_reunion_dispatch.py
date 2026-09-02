@@ -106,13 +106,16 @@ def test_rezo_driver_timeout_is_scheduled_at_120_seconds(app, operateur, moteur)
         kwargs={
             'initial_hail_status': 'received_by_taxi',
             'new_hail_status': 'timeout_taxi',
-            'new_taxi_status': 'off',
+            # Rezo D19: an unanswered hail pauses the driver, it does not end
+            # their shift.
+            'new_taxi_status': 'occupied',
         },
         countdown=120,
     )
 
 
-def test_rezo_driver_timeout_marks_hail_and_taxi_unavailable(app, operateur, moteur):
+def test_rezo_driver_timeout_pauses_the_taxi(app, operateur, moteur):
+    """Rezo D19: after 120 s without an answer the taxi is paused, not offline."""
     hail = HailFactory(
         added_by=moteur.user,
         operateur=operateur.user,
@@ -128,11 +131,11 @@ def test_rezo_driver_timeout_marks_hail_and_taxi_unavailable(app, operateur, mot
         operateur.user.id,
         'received_by_taxi',
         'timeout_taxi',
-        'off',
+        'occupied',
     )
 
     hail = db.session.get(Hail, hail_id)
     vehicle_description = db.session.get(VehicleDescription, vehicle_description_id)
     assert hail.status == 'timeout_taxi'
     assert hail.transition_log[-1]['reason'] == 'timeout'
-    assert vehicle_description.status == 'off'
+    assert vehicle_description.status == 'occupied'

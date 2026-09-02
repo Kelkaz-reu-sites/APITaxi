@@ -15,6 +15,16 @@ def test_rezo_taxi_config_defaults(app):
     assert app.config['REZO_TAXI_LONG_WAIT_THRESHOLD_SECONDS'] == 900
 
 
+def test_pickup_timeout_allows_one_hour_approach(app):
+    """Rezo D21: an approach may legitimately last up to one hour.
+
+    With a 30 km maximum radius, the island relief and RN1 congestion, a long
+    approach is not an anomaly. A lingering hail costs the service less than a
+    ride cancelled while the taxi is still driving to the customer.
+    """
+    assert app.config['REZO_TAXI_PICKUP_TIMEOUT_SECONDS'] == 60 * 60
+
+
 def test_rezo_taxi_config_rejects_invalid_radius_bounds(app):
     app.config['REZO_TAXI_RADIUS_DEFAULT_METERS'] = 400
 

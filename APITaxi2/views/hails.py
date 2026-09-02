@@ -9,6 +9,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import aliased, joinedload
 
 from APITaxi_models2 import Customer, db, Hail, Taxi, User, Vehicle, VehicleDescription
+from APITaxi_models2.hail import HAIL_TERMINAL_STATUS
 from .. import activity_logs, redis_backend, schemas, tasks, processes, utils
 from ..security import auth, current_user
 from ..services import hail_reassignment, hail_state_machine
@@ -696,8 +697,40 @@ def hails_create():
             }
         }, status_code=400)
 
+    # Rezo D16: serialise concurrent creations on this taxi.
+    #
+    # Upstream reads the status below, then writes 'answering' further down,
+    # with nothing in between. Under READ COMMITTED two simultaneous requests
+    # both read 'free' and both retain the same taxi. Locking the vehicle
+    # description row makes the second request wait for the first to commit,
+    # so it observes the taxi as taken and refuses like any other unavailable
+    # taxi. The partial unique index on non-terminal hails remains the net
+    # underneath, for any path that would bypass this view.
+    db.session.query(VehicleDescription.id).filter(
+        VehicleDescription.id == vehicle_description.id
+    ).with_for_update().one()
+    db.session.refresh(vehicle_description)
+
     # VehicleDescription.status must be set to free.
     if vehicle_description.status != 'free':
+        return make_error_json_response({
+            'data': {
+                '0': {
+                    'taxi_id': ['Taxi is not free.']
+                }
+            }
+        }, status_code=400)
+
+    # A status left at 'free' does not prove the taxi is available: a crash
+    # between the hail insert and the status update, or a race won by another
+    # request, can leave the two out of step. The hails themselves are the
+    # authority.
+    if db.session.query(
+        Hail.query.filter(
+            Hail.taxi_id == taxi.id,
+            ~Hail.status.in_(HAIL_TERMINAL_STATUS),
+        ).exists()
+    ).scalar():
         return make_error_json_response({
             'data': {
                 '0': {

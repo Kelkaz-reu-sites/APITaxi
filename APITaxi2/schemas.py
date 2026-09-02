@@ -851,8 +851,12 @@ class HailSchema(Schema):
         hail, taxi_position, vehicle_description = obj
         ret = super().dump(hail, *args, **kwargs)
 
-        # Taxi location should only be returned if the hail is in progress.
-        if taxi_position and hail.status in (
+        # Approach distance and freshness are returned while the hail is in
+        # progress. A distance is a circle, not a point: it does not locate the
+        # driver, the customer already saw it when picking this taxi, and ADR
+        # 0023 requires it so that a distant taxi is not presented as
+        # equivalent to a close one.
+        hail_in_progress = hail.status in (
             'received',
             'sent_to_operator',
             'received_by_operator',
@@ -860,22 +864,30 @@ class HailSchema(Schema):
             'accepted_by_taxi',
             'accepted_by_customer',
             'customer_on_board',
-        ):
+        )
+
+        # Rezo D10 and D11: the exact position is the driver's. It is revealed
+        # only once the customer has committed to the ride, and only for the
+        # approach — sharing stops at pickup, because Rezo does not follow the
+        # commercial ride. Upstream le.taxi exposed it for every status above.
+        if taxi_position and hail.status == 'accepted_by_customer':
             ret['taxi']['position'] = {
                 'lon': taxi_position.lon,
                 'lat': taxi_position.lat
             }
-            ret['taxi']['crowfly_distance'] = geodesic(
-                (taxi_position.lat, taxi_position.lon),
-                (hail.customer_lat, hail.customer_lon)
-            ).kilometers
-            ret['taxi']['last_update'] = taxi_position.timestamp
-        # Don't display location for hails not in progress.
         else:
             ret['taxi']['position'] = {
                 'lon': None,
                 'lat': None
             }
+
+        if taxi_position and hail_in_progress:
+            ret['taxi']['crowfly_distance'] = geodesic(
+                (taxi_position.lat, taxi_position.lon),
+                (hail.customer_lat, hail.customer_lon)
+            ).kilometers
+            ret['taxi']['last_update'] = taxi_position.timestamp
+        else:
             ret['taxi']['crowfly_distance'] = None
             ret['taxi']['last_update'] = None
 

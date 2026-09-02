@@ -14,7 +14,10 @@ DEFAULTS = {
     'REZO_TAXI_LONG_WAIT_THRESHOLD_SECONDS': 15 * 60,
     'REZO_TAXI_OPERATOR_ACK_TIMEOUT_SECONDS': 10,
     'REZO_TAXI_SEND_OPERATOR_MAX_DELAY_SECONDS': 10,
-    'REZO_TAXI_PICKUP_TIMEOUT_SECONDS': 30 * 60,
+    # Rezo D21: an approach may last up to one hour. With a 30 km maximum
+    # radius, the island relief and RN1 congestion, a long approach is not an
+    # anomaly.
+    'REZO_TAXI_PICKUP_TIMEOUT_SECONDS': 60 * 60,
     'REZO_TAXI_RIDE_TIMEOUT_SECONDS': 2 * 60 * 60,
 }
 
