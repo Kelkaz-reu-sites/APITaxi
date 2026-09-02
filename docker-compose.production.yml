@@ -40,7 +40,12 @@ x-app-env: &app-env
   REZO_TAXI_LONG_WAIT_THRESHOLD_SECONDS: "${REZO_TAXI_LONG_WAIT_THRESHOLD_SECONDS:-900}"
   REZO_TAXI_OPERATOR_ACK_TIMEOUT_SECONDS: "${REZO_TAXI_OPERATOR_ACK_TIMEOUT_SECONDS:-30}"
   REZO_TAXI_SEND_OPERATOR_MAX_DELAY_SECONDS: "${REZO_TAXI_SEND_OPERATOR_MAX_DELAY_SECONDS:-30}"
-  REZO_TAXI_PICKUP_TIMEOUT_SECONDS: "${REZO_TAXI_PICKUP_TIMEOUT_SECONDS:-900}"
+  # Rezo D21: an approach may last up to one hour. Production ran 900 s, which
+  # is shorter still than the 1800 s Python default — with a 30 km maximum
+  # radius, the island relief and RN1 congestion, that expired legitimate
+  # approaches. Keep in sync with APITaxi2/rezo_taxi_config.py: these defaults
+  # are duplicated, and the compose value wins at runtime.
+  REZO_TAXI_PICKUP_TIMEOUT_SECONDS: "${REZO_TAXI_PICKUP_TIMEOUT_SECONDS:-3600}"
   REZO_TAXI_RIDE_TIMEOUT_SECONDS: "${REZO_TAXI_RIDE_TIMEOUT_SECONDS:-7200}"
   REZO_TAXI_INTERNAL_OPERATOR_HANDOFF_ENABLED: "${REZO_TAXI_INTERNAL_OPERATOR_HANDOFF_ENABLED:-false}"
   REZO_TAXI_INTERNAL_OPERATOR_EMAILS: "${REZO_TAXI_INTERNAL_OPERATOR_EMAILS:-}"
