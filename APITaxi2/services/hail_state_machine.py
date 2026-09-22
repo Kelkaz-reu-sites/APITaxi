@@ -121,13 +121,14 @@ def _has_role(user, role):
     return bool(user and user.has_role(role))
 
 
-def _has_processed_event(hail, event_id):
+def _processed_event(hail, event_id):
     if not event_id:
-        return False
-    return any(
-        transition.get('event_id') == event_id
+        return None
+    return next((
+        transition
         for transition in (hail.transition_log or [])
-    )
+        if transition.get('event_id') == event_id
+    ), None)
 
 
 def set_taxi_status(hail, vehicle_description, new_taxi_status, **log_extra):
@@ -155,7 +156,10 @@ def apply_transition(
     Re-applying the current status is also treated as a no-op for historical API
     compatibility.
     """
-    if _has_processed_event(hail, event_id):
+    previous = _processed_event(hail, event_id)
+    if previous is not None:
+        if previous.get('to_status') != new_status or previous.get('user') != (user.id if user else None):
+            raise ValueError('Event id already used for another transition or actor')
         return TransitionResult(changed=False, event_replayed=True)
 
     if hail.status == new_status:

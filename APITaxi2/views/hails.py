@@ -39,7 +39,7 @@ def _get_short_uuid():
     return str(uuid.uuid4())[0:7]
 
 
-def _set_hail_status(hail, vehicle_description, new_status, new_taxi_phone_number, user):
+def _set_hail_status(hail, vehicle_description, new_status, new_taxi_phone_number, user, event_id=None):
     """Change `hail`'s status to `new_status`. Raises ValueError if the change
     is impossible.
 
@@ -60,6 +60,7 @@ def _set_hail_status(hail, vehicle_description, new_status, new_taxi_phone_numbe
         new_status,
         user=user,
         taxi_phone_number=new_taxi_phone_number,
+        event_id=event_id,
     )
     return transition.changed
 
@@ -341,6 +342,10 @@ def hails_details(hail_id):
         query = query.filter(
             Hail.added_at >= (datetime.now() - timedelta(days=60))
         )
+    if request.method == 'PUT':
+        # Serialize the authoritative read with the mutation, including the
+        # vehicle state. Joined eager loads contain nullable outer joins.
+        query = query.with_for_update(of=(Hail, VehicleDescription)).populate_existing()
     query = query.one_or_none()
     if not query:
         return make_error_json_response({
@@ -366,6 +371,12 @@ def hails_details(hail_id):
 
     args = params.get('data', [{}])[0]
 
+    if args.get('event_id') and (
+        'status' not in args
+        or set(args) - {'event_id', 'status', 'taxi_phone_number'}
+    ):
+        return make_error_json_response({'event_id': ['Idempotent events must contain a status transition only']})
+
     hail_initial_status = hail.status
 
     try:
@@ -375,6 +386,7 @@ def hails_details(hail_id):
             args.get('status', NOT_PROVIDED),
             args.get('taxi_phone_number'),
             current_user,
+            event_id=args.get('event_id'),
         )
     except ValueError as exc:
         return make_error_json_response({

@@ -209,8 +209,8 @@ def test_event_id_replay_is_idempotent(operateur, moteur):
     result = hail_state_machine.apply_transition(
         hail,
         vehicle_description,
-        'accepted_by_customer',
-        user=moteur.user,
+        'accepted_by_taxi',
+        user=operateur.user,
         event_id='evt-accept-driver',
     )
 
@@ -218,6 +218,11 @@ def test_event_id_replay_is_idempotent(operateur, moteur):
     assert result.event_replayed is True
     assert hail.status == 'accepted_by_taxi'
     assert len(hail.transition_log) == log_size
+    with pytest.raises(ValueError, match='another transition or actor'):
+        hail_state_machine.apply_transition(
+            hail, vehicle_description, 'accepted_by_customer',
+            user=moteur.user, event_id='evt-accept-driver',
+        )
     db.session.commit()
 
 

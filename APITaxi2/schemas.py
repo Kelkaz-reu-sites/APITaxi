@@ -796,6 +796,10 @@ class HailTaxiSchema(Schema):
 class HailSchema(Schema):
     """Schema to read and update hails."""
     id = fields.String(dump_only=True)
+    event_id = fields.String(load_only=True, validate=[
+        validate.Length(min=1, max=128),
+        validate.Regexp(r'^[A-Za-z0-9._:-]+$'),
+    ])
     session_id = fields.UUID(dump_only=True)
     operateur = fields.String(dump_only=True, attribute='operateur.email')
     taxi = fields.Nested(HailTaxiSchema, dump_only=True)

@@ -91,7 +91,7 @@ def handle_hail_timeout(hail_id, operateur_id,
         VehicleDescription.vehicle_id == Vehicle.id,
         Hail.id == hail_id,
         VehicleDescription.added_by_id == int(operateur_id)
-    ).one_or_none()
+    ).with_for_update(of=(Hail, VehicleDescription)).populate_existing().one_or_none()
     if not res:
         observability.log_event(
             current_app.logger,

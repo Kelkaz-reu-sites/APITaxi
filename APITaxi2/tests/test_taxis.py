@@ -11,6 +11,7 @@ from APITaxi_models2.unittest.factories import (
     ExclusionFactory,
     DriverFactory,
     TaxiFactory,
+    HailFactory,
     TownFactory,
     VehicleFactory,
     VehicleDescriptionFactory,
@@ -105,6 +106,30 @@ class TestTaxiGet:
 
 
 class TestTaxiPut:
+    def test_suspend_is_idle_only_and_requires_ownership(self, app, operateur, moteur):
+        taxi = TaxiFactory(added_by=operateur.user)
+        response = operateur.client.post(f'/taxis/{taxi.id}/suspend', json={})
+        assert response.status_code == 200
+        assert response.json['data'][0]['status'] == 'off'
+        assert moteur.client.post(f'/taxis/{taxi.id}/suspend', json={}).status_code == 403
+
+        hail = HailFactory(operateur=operateur.user, status='accepted_by_customer')
+        description = VehicleDescription.query.filter_by(vehicle_id=hail.taxi.vehicle_id, added_by_id=operateur.user.id).one()
+        description.status = 'oncoming'
+        from APITaxi_models2 import db
+        db.session.commit()
+        response = operateur.client.post(f'/taxis/{hail.taxi_id}/suspend', json={})
+        assert response.status_code == 200
+        assert response.json['data'][0]['status'] == 'oncoming'
+        for status in ('off', 'occupied', 'free'):
+            response = operateur.client.put(f'/taxis/{hail.taxi_id}', json={'data': [{'status': status}]})
+            assert response.status_code == 409
+
+    def test_free_requires_fresh_gps(self, operateur):
+        taxi = TaxiFactory(added_by=operateur.user)
+        response = operateur.client.put(f'/taxis/{taxi.id}', json={'data': [{'status': 'free'}]})
+        assert response.status_code == 409
+
     def test_ok(self, app, operateur, QueriesTracker):
         def _set_taxi_status(status, hail=None, initial_status=None):
             vehicle = VehicleFactory(descriptions=[])
@@ -114,6 +139,9 @@ class TestTaxiPut:
                 status=initial_status
             )
             taxi = TaxiFactory(vehicle=vehicle)
+            if status == 'free':
+                app.redis.hset(f'taxi:{taxi.id}', operateur.user.email,
+                               f'{int(time.time())} -21 55 free android 1')
 
             with QueriesTracker() as qtracker:
                 resp = operateur.client.put('/taxis/%s' % taxi.id, json={
@@ -121,8 +149,8 @@ class TestTaxiPut:
                         'status': status
                     }]
                 })
-                # SELECT permissions, SELECT taxi, UPDATE hail, UPDATE vehicle_description, INSERT log, UPDATE taxi
-                assert qtracker.count <= 6
+                # Includes the authoritative active-hail guard under the vehicle lock.
+                assert qtracker.count <= 7
             return taxi, resp
 
         taxi, resp = _set_taxi_status('off')

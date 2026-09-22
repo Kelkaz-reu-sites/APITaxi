@@ -2,6 +2,7 @@ import collections
 from datetime import datetime, timedelta
 from functools import reduce
 import re
+import time
 
 from flask import Blueprint, request, current_app
 
@@ -13,6 +14,7 @@ from APITaxi_models2 import (
     db,
     Departement,
     Driver,
+    Hail,
     Taxi,
     Town,
     Vehicle,
@@ -20,6 +22,7 @@ from APITaxi_models2 import (
     ZUPC,
 )
 from APITaxi_models2.stats import StatsSearches
+from APITaxi_models2.hail import HAIL_TERMINAL_STATUS
 
 from .. import activity_logs, debug, redis_backend, rezo_taxi_config, schemas
 from ..exclusions import ExclusionHelper
@@ -199,6 +202,7 @@ def taxis_create():
 
 
 @blueprint.route('/taxis/<string:taxi_id>', methods=['GET', 'PUT'])
+@blueprint.route('/taxis/<string:taxi_id>/suspend', methods=['POST'])
 @auth.login_required(role=['admin', 'operateur'])
 def taxis_details(taxi_id):
     """Get or update a taxi.
@@ -304,6 +308,9 @@ def taxis_details(taxi_id):
         VehicleDescription.added_by == current_user
     )
 
+    if request.method != 'GET':
+        # Same serialization point as hail creation and transitions.
+        query = query.with_for_update(of=VehicleDescription).populate_existing()
     res = query.one_or_none()
     if not res:
         return make_error_json_response({
@@ -325,14 +332,33 @@ def taxis_details(taxi_id):
     schema = schemas.DataTaxiSchema()
 
     # Dump data for GET requests
-    if request.method != 'PUT':
+    if request.method == 'GET':
         return schema.dump({'data': [(taxi, vehicle_description, location)]})
 
-    params, errors = validate_schema(schema, request.json, partial=True)
-    if errors:
-        return make_error_json_response(errors)
+    conditional_suspend = request.method == 'POST'
+    if conditional_suspend:
+        args = {'status': 'off'}
+    else:
+        params, errors = validate_schema(schema, request.json, partial=True)
+        if errors:
+            return make_error_json_response(errors)
+        args = params.get('data', [{}])[0]
 
-    args = params.get('data', [{}])[0]
+    if 'status' in args:
+        active_hail = db.session.query(Hail.id).filter(
+            Hail.taxi_id == taxi.id,
+            Hail.status.notin_(HAIL_TERMINAL_STATUS),
+        ).first()
+        if active_hail:
+            if conditional_suspend:
+                output = schema.dump({'data': [(taxi, vehicle_description, location)]})
+                db.session.commit()
+                return output
+            return make_error_json_response({'status': ['Taxi has an active hail']}, status_code=409)
+        if args['status'] == 'free' and (
+            not redis_taxi or time.time() - redis_taxi.timestamp > current_app.config['REZO_TAXI_GPS_FRESHNESS_SECONDS']
+        ):
+            return make_error_json_response({'status': ['Fresh GPS position required']}, status_code=409)
 
     # For now it is only possible to update the taxi's status...
     if 'status' in args and args['status'] != vehicle_description.status:

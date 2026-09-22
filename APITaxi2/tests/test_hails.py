@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 import json
 import time
 from unittest import mock
@@ -8,12 +10,11 @@ import requests
 import sqlalchemy
 
 from APITaxi2 import tasks, utils
-from APITaxi_models2 import Hail, Taxi, Vehicle, VehicleDescription
+from APITaxi_models2 import db, Hail, Taxi, Vehicle, VehicleDescription
 from APITaxi_models2.unittest.factories import (
     CustomerFactory,
     HailFactory,
     TaxiFactory,
-    VehicleFactory,
     VehicleDescriptionFactory,
 )
 
@@ -143,6 +144,56 @@ class TestGetHailDetails:
 
 
 class TestEditHail:
+    def test_concurrent_event_replay_is_applied_once(self, app, operateur):
+        hail = HailFactory(status='received_by_taxi', operateur=operateur.user)
+        url, api_key = f'/hails/{hail.id}', operateur.user.apikey
+        db.session.commit()
+        barrier = Barrier(2)
+
+        def accept():
+            with app.test_client() as client:
+                barrier.wait(timeout=5)
+                response = client.put(url, headers={'X-Api-Key': api_key}, json={'data': [{
+                    'status': 'accepted_by_taxi', 'taxi_phone_number': '+262692000000',
+                    'event_id': 'same-driver-event',
+                }]})
+                return response.status_code, response.json
+
+        with mock.patch.object(tasks.handle_hail_timeout, 'apply_async') as timer:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                results = list(pool.map(lambda _: accept(), range(2)))
+            assert [code for code, _ in results] == [200, 200], results
+            assert timer.call_count == 1
+        db.session.expire_all()
+        response = operateur.client.get(url)
+        assert sum(t.get('event_id') == 'same-driver-event' for t in response.json['data'][0]['transitions']) == 1
+
+    def test_event_replay_after_later_transition(self, operateur, moteur):
+        hail = HailFactory(status='received_by_taxi', operateur=operateur.user, added_by=moteur.user)
+        url = f'/hails/{hail.id}'
+        accept = {'data': [{'status': 'accepted_by_taxi', 'taxi_phone_number': '+262692000000', 'event_id': 'driver-accept-1'}]}
+        with mock.patch.object(tasks.handle_hail_timeout, 'apply_async') as timer:
+            first = operateur.client.put(url, json=accept)
+            assert first.status_code == 200, first.json
+            confirmed = moteur.client.put(url, json={'data': [{'status': 'accepted_by_customer'}]})
+            assert confirmed.status_code == 200, confirmed.json
+            calls = timer.call_count
+            replay = operateur.client.put(url, json=accept)
+            assert replay.status_code == 200, replay.json
+            assert replay.json['data'][0]['status'] == 'accepted_by_customer'
+            assert timer.call_count == calls
+            assert sum(t.get('event_id') == 'driver-accept-1' for t in replay.json['data'][0]['transitions']) == 1
+            conflict = operateur.client.put(url, json={'data': [{'status': 'incident_taxi', 'event_id': 'driver-accept-1'}]})
+            assert conflict.status_code == 400
+
+    def test_event_rejects_non_transition_payload(self, operateur):
+        hail = HailFactory(status='received_by_taxi', operateur=operateur.user)
+        for event in ['', 'bad id', 'x' * 129]:
+            response = operateur.client.put(f'/hails/{hail.id}', json={'data': [{'event_id': event, 'status': 'accepted_by_taxi'}]})
+            assert response.status_code == 400
+        response = operateur.client.put(f'/hails/{hail.id}', json={'data': [{'event_id': 'one', 'reporting_customer': True}]})
+        assert response.status_code == 400
+
     def test_invalid(self, anonymous, operateur, moteur):
         # Login required
         resp = anonymous.client.put('/hails/xxx', json={})
@@ -892,7 +943,7 @@ class TestCreateHail:
             resp._content = json.dumps(content).encode('utf8')
             return resp
 
-        with mock.patch('requests.get', requests_get) as mocked:
+        with mock.patch('requests.get', requests_get):
             resp = self._create_hail(app, operateur, moteur, customer_address='')
             assert resp.status_code == 201
             assert resp.json['data'][0]['customer_address'] == "8 Boulevard du Port, Amiens"
