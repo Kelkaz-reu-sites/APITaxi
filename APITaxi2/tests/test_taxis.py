@@ -450,6 +450,27 @@ class TestTaxiSearch:
         resp = anonymous.client.get('/taxis')
         assert resp.status_code == 401
 
+    def test_free_taxi_with_active_hail_is_hidden_until_ride_finishes(self, app, moteur, operateur):
+        ZUPCFactory()
+        taxi = TaxiFactory(added_by=operateur.user)
+        description = VehicleDescription.query.options(joinedload(VehicleDescription.added_by)).filter_by(
+            vehicle_id=taxi.vehicle_id, added_by_id=operateur.user.id,
+        ).one()
+        description.status = 'free'
+        self._post_geotaxi(app, 2.35, 48.86, taxi, description)
+        hail = HailFactory(taxi=taxi, added_by=moteur.user,
+                           operateur=operateur.user, status='customer_on_board')
+
+        search = lambda: moteur.client.get('/taxis?lon=2.35&lat=48.86')
+        response = search()
+        assert response.status_code == 200
+        assert response.json['data'] == []
+
+        hail.status = 'finished'
+        response = search()
+        assert response.status_code == 200
+        assert [item['id'] for item in response.json['data']] == [taxi.id]
+
     def test_ok(self, app, moteur, QueriesTracker):
         ZUPCFactory()
         now = datetime.now()

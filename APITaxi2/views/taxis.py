@@ -513,6 +513,13 @@ def taxis_search():
         VehicleDescription.vehicle_id == Taxi.vehicle_id
     ).filter(
         Taxi.id.in_(locations.keys()),
+        # A free vehicle status alone can lag behind an assigned hail. Use the
+        # same non-terminal authority as hail creation, backed by the partial
+        # unique index, so search never offers an unbookable taxi.
+        ~db.session.query(Hail.id).filter(
+            Hail.taxi_id == Taxi.id,
+            Hail.status.notin_(HAIL_TERMINAL_STATUS),
+        ).exists(),
         # Removes taxis with an ADS located in another ZUPC than the one where
         # the request is made. For example, if a taxi from Bordeaux reports
         # its location in Paris, we don't want it returned for a request in Paris.
