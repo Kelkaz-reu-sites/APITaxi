@@ -150,17 +150,29 @@ docker build --target beat -t rezo-taxi-core-beat:test .
 Maintenance du 22 octobre 2026 : `deploy/backup_taxi_core.py` produit un dump
 complet, y compris les hypertables, les rôles sans leurs mots de passe et un
 manifeste de versions/empreintes. Il chiffre l'ensemble avec `age` pour la clé
-publique SSH de Phil, puis vérifie par relecture la copie dans le bucket R2
-privé déjà utilisé par REZO. La clé privée reste sur le poste de Phil.
+publique SSH de Phil. Le mode distant vérifie par relecture la copie dans le
+bucket R2 privé configuré. La clé privée reste sur le poste de Phil.
 L'absence de configuration privée, un échec d'envoi ou une différence
 d'empreinte font échouer la sauvegarde ; aucune destination publique de secours.
 La rétention locale des nouvelles archives est de 14 jours. Les copies R2 sont
 conservées ; aucune suppression distante n'est automatisée.
 
-Le lanceur quotidien doit appeler cet outil via le wrapper de notification REZO.
-Après installation, contrôler la preuve `OFFSITE_VERIFIED=true` et tester aussi
-le déchiffrement avec la clé privée du poste. Une archive lisible ne remplace pas
-la recette de restauration isolée avant migration PostgreSQL/TimescaleDB.
+**État du 22 octobre 2026 : le cron est figé sur `--local-only`.** Ce mode ne lit
+aucune configuration R2 et ne contacte aucun stockage réseau. Il produit une
+archive chiffrée complète et un JSON `storage_mode=local-only`,
+`offsite_verified=false`. L'envoi R2 a rencontré un refus 403 ; un contrôle
+automatique a ensuite refusé un essai supplémentaire faute de preuve suffisante
+de propriété/autorisation de la destination. Ne pas retenter ni activer d'envoi
+automatique avant résolution de cette autorisation. Il n'existe aucun repli
+automatique vers une destination publique ou vers le mode distant.
+
+Le lanceur quotidien appelle l'outil via le wrapper de notification REZO.
+Contrôler la fraîcheur et les empreintes locales, et tester le déchiffrement
+avec la clé privée du poste. Une archive lisible ne remplace pas la recette de
+restauration isolée avant migration PostgreSQL/TimescaleDB. Le 22 octobre,
+l'archive préalable à la livraison a été copiée sur le poste opérateur : SHA du
+chiffrement identique, déchiffrement réussi et empreinte du dump conforme au
+manifeste. Cette copie opérateur ne constitue pas une vérification R2.
 
 Le wrapper versionné `deploy/backup_taxi_core.sh` prend un verrou, appelle
 `/opt/rezo/scripts/notify_cron.sh` sur échec, et stocke les nouvelles archives
@@ -171,6 +183,12 @@ lanceur doit exécuter `sudo -n /usr/local/sbin/rezo-taxi-core-backup`, sans
 argument. Installer le wrapper versionné à cet emplacement, root/root `0755`,
 dans un répertoire non modifiable par debian. Conserver son entrée et son
 ancien chemin de log ; ne pas créer un second job root concurrent.
+
+La livraison des scripts de backup seuls ne reconstruit ni ne redémarre les
+conteneurs : les images applicatives du 22 octobre restent construites depuis
+`78c8936123ddeb6396c80823db44b036a20ed77d`. Distinguer le SHA du checkout des
+outils (`source_checkout_sha`) et les identités binaires enregistrées dans le
+manifeste (`application_image_id`, `database_image_id`).
 
 Installer uniquement la clé **publique** `~/.ssh/id_ed25519.pub` de Phil dans
 `/etc/rezo-maintenance/backup-recipient.pub` (propriétaire root), puis lancer
