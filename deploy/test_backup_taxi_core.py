@@ -75,7 +75,7 @@ class BackupConfigurationTests(unittest.TestCase):
                 )
         self.assertNotIn("test-secret", str(error.exception) + logs.getvalue())
 
-    def test_local_mode_never_reads_r2_credentials_or_contacts_storage(self):
+    def test_default_local_mode_never_reads_r2_credentials_or_contacts_storage(self):
         previous_umask = os.umask(0o077)
         os.umask(previous_umask)
         self.addCleanup(os.umask, previous_umask)
@@ -105,13 +105,10 @@ class BackupConfigurationTests(unittest.TestCase):
 
         arguments = [
             "backup",
-            "--local-only",
             "--output-dir",
             str(destination),
             "--recipient-file",
             str(recipient),
-            "--r2-config",
-            str(Path(self.temp.name) / "missing-private-config"),
         ]
         output = io.StringIO()
         with (
@@ -150,14 +147,14 @@ class BackupConfigurationTests(unittest.TestCase):
         self.assertEqual(proofs[0].stat().st_mode & 0o077, 0)
         self.assertEqual(destination.stat().st_mode & 0o077, 0)
 
-    def test_default_mode_fails_closed_if_r2_configuration_is_unavailable(self):
+    def test_explicit_r2_destination_is_rejected_before_any_backup_or_credentials(self):
         with (
-            patch.object(sys, "argv", ["backup"]),
+            patch.object(sys, "argv", ["backup", "--r2-config", str(self.config)]),
             patch.object(
                 backup, "r2_environment", side_effect=RuntimeError("R2 unavailable")
             ),
             patch.object(backup, "run") as command,
-            self.assertRaisesRegex(RuntimeError, "R2 unavailable"),
+            self.assertRaises(SystemExit),
         ):
             backup.main()
         command.assert_not_called()

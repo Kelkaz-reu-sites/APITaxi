@@ -165,24 +165,38 @@ urllib3 2.7.0) et `linux-libc-dev`, sans ignorer d'avis de sécurité.
 
 ## 6. Database backup before deploy
 
-Maintenance du 22 octobre 2026 : `deploy/backup_taxi_core.py` produit un dump
-complet, y compris les hypertables, les rôles sans leurs mots de passe et un
-manifeste de versions/empreintes. Il chiffre l'ensemble avec `age` pour la clé
-publique SSH de Phil. Le mode distant vérifie par relecture la copie dans le
-bucket R2 privé configuré. La clé privée reste sur le poste de Phil.
-L'absence de configuration privée, un échec d'envoi ou une différence
-d'empreinte font échouer la sauvegarde ; aucune destination publique de secours.
-La rétention locale des nouvelles archives est de 14 jours. Les copies R2 sont
-conservées ; aucune suppression distante n'est automatisée.
+**Décision de Phil du 22 octobre 2026 : les sauvegardes sont copiées sur son
+ordinateur ; R2 est abandonné comme destination de sauvegarde.** Aucune reprise
+d'envoi R2 ni nouvelle sonde réseau n'est prévue. La copie automatique vers
+l'ordinateur n'est pas encore configurée par ce lot.
 
-**État du 22 octobre 2026 : le cron est figé sur `--local-only`.** Ce mode ne lit
-aucune configuration R2 et ne contacte aucun stockage réseau. Il produit une
-archive chiffrée complète et un JSON `storage_mode=local-only`,
-`offsite_verified=false`. L'envoi R2 a rencontré un refus 403 ; un contrôle
+`deploy/backup_taxi_core.py` produit un dump complet, y compris les hypertables,
+les rôles sans leurs mots de passe et un manifeste de versions/empreintes. Il
+chiffre l'ensemble avec `age` pour la clé publique SSH de Phil. La clé privée
+reste sur son poste. La rétention locale des nouvelles archives est de 14 jours.
+
+L'entrée Python fonctionne **toujours en local**, y compris sans
+`--local-only`. Le cron conserve explicitement ce drapeau pour compatibilité.
+Aucune configuration R2 n'est lue et aucun stockage réseau n'est contacté.
+`--r2-config` est refusé avant toute lecture de configuration ou sauvegarde.
+Le JSON produit contient `storage_mode=local-only`, `offsite_verified=false`.
+La copie sur le poste doit être accompagnée de sa preuve JSON et vérifiée par
+relecture SHA-256 ; sa présence ne doit pas être déduite du seul succès du cron.
+La copie opérateur déjà effectuée a été vérifiée séparément, comme décrit
+ci-dessous. Une copie nouvelle nécessite une preuve nouvelle.
+
+`deploy/r2_bucket_preflight.py` est retiré de l'exploitation : son entrée CLI
+refuse toute invocation avant lecture de configuration, HEAD ou sous-processus,
+y compris les anciens arguments de sonde publique. Les helpers historiques
+restent couverts par des tests isolés dont toutes les opérations réseau sont
+simulées. Les anciens fichiers de preuve sont conservés pour l'historique.
+
+### Historique des essais R2 abandonnés
+
+Un premier envoi R2 du 22 octobre a rencontré un refus 403 ; un contrôle
 automatique a ensuite refusé un essai supplémentaire faute de preuve suffisante
-de propriété/autorisation de la destination. Ne pas retenter ni activer d'envoi
-automatique avant résolution de cette autorisation. Il n'existe aucun repli
-automatique vers une destination publique ou vers le mode distant.
+de propriété/autorisation de la destination. Ces événements n'ont pas produit
+de sauvegarde R2 vérifiée.
 
 Diagnostic ultérieur du même jour, **16:32 UTC** : une unique sonde de texte
 public généré (92 octets, nonce aléatoire), distincte de toute sauvegarde,
@@ -196,17 +210,13 @@ ni envoi de sauvegarde n'a eu lieu ; aucun nouvel essai d'écriture n'est prévu
 Preuves privées sous `/var/backups/rezo-taxi-core/r2-permission-check/`,
 préfixe de preuve `20261022T163220Z-ef900eb8f0f89bf07b297c5968e68e29ff3468b18d5e9395`.
 
-L'outil versionné `deploy/r2_bucket_preflight.py` utilise un HEAD AWS SigV4,
-un endpoint R2 HTTPS strict et aucune redirection. Il conserve une preuve
-`0600` avant d'autoriser le réglage rclone `no_check_bucket` dans ce seul
-sous-processus. [Cloudflare le documente pour les tokens limités aux objets](https://developers.cloudflare.com/r2/examples/rclone/) ;
-[rclone explique que son contrôle peut autrement tenter de créer le bucket](https://rclone.org/s3/#s3-no-check-bucket).
-Le contrôle d'existence signé reste donc obligatoire. Aucun contrôle HEAD des
-objets ni vérification du contenu n'est désactivé.
-Le script réalise seulement ce HEAD par défaut ; `--execute-public-probe`
-reste une action d'écriture distincte qui nécessite une autorisation explicite.
-Son interface ne prend aucun fichier à envoyer et limite la sonde au préfixe
-`operations/backups/taxi-core/permission-check/`. Le cron reste `--local-only`.
+L'ancien préflight utilisait un HEAD AWS SigV4 et un endpoint R2 HTTPS strict
+sans redirection, puis enregistrait une preuve `0600` avant d'autoriser
+`no_check_bucket` dans son seul sous-processus rclone. Cette configuration
+historique suivait les explications de
+[Cloudflare pour les tokens limités aux objets](https://developers.cloudflare.com/r2/examples/rclone/)
+et [rclone sur le contrôle de création du bucket](https://rclone.org/s3/#s3-no-check-bucket).
+Ces liens documentent l'essai passé ; l'outil CLI ne réalise plus ces opérations.
 
 Le lanceur quotidien appelle l'outil via le wrapper de notification REZO.
 Contrôler la fraîcheur et les empreintes locales, et tester le déchiffrement

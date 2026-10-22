@@ -2,6 +2,7 @@
 
 import io
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -22,6 +23,32 @@ class R2PreflightTests(unittest.TestCase):
             "AWS_SECRET_ACCESS_KEY": "test-secret-key",
             "RCLONE_S3_ENDPOINT": "https://" + "a" * 32 + ".r2.cloudflarestorage.com",
         }
+
+    def test_retired_cli_never_reads_configuration_or_contacts_storage(self):
+        for arguments in (
+            ["r2-preflight"],
+            ["r2-preflight", "--help"],
+            [
+                "r2-preflight",
+                "--r2-config",
+                "/must-not-read-private-config",
+                "--execute-public-probe",
+            ],
+        ):
+            with (
+                self.subTest(arguments=arguments),
+                patch.object(sys, "argv", arguments),
+                patch.object(Path, "read_text") as read,
+                patch.object(backup, "r2_environment") as credentials,
+                patch.object(preflight.http.client, "HTTPSConnection") as network,
+                patch.object(preflight.subprocess, "run") as process,
+                patch.object(preflight, "verified_rclone_environment") as head,
+                patch.object(preflight, "public_permission_probe") as probe,
+                self.assertRaisesRegex(SystemExit, "tooling retired"),
+            ):
+                preflight.main()
+            for operation in (read, credentials, network, process, head, probe):
+                operation.assert_not_called()
 
     def test_signed_head_is_exact_and_credentials_are_not_persisted(self):
         response = SimpleNamespace(status=200, getheader=lambda name: "request-123")

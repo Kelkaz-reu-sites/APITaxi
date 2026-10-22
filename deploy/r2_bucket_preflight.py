@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Verify the configured R2 bucket; optionally probe with generated public text."""
+"""Retired R2 CLI; historical verification helpers retained for audit tests."""
 
 from __future__ import annotations
 
-import argparse
 import datetime as dt
 import hashlib
 import hmac
@@ -13,7 +12,6 @@ import os
 import re
 import secrets
 import subprocess
-import sys
 import tempfile
 import urllib.parse
 from pathlib import Path
@@ -222,42 +220,10 @@ def public_permission_probe(env: dict, bucket: str, root: Path) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--r2-config", type=Path, default=Path("/opt/rezo/web/.env.local")
-    )
-    parser.add_argument(
-        "--proof-dir",
-        type=Path,
-        default=Path("/var/backups/rezo-taxi-core/r2-permission-check"),
-    )
-    parser.add_argument("--execute-public-probe", action="store_true")
-    args = parser.parse_args()
-    os.umask(0o077)
-    from backup_taxi_core import r2_environment
-
-    env, bucket = r2_environment(args.r2_config)
-    if args.execute_public_probe:
-        proof = public_permission_probe(env, bucket, args.proof_dir)
-        print(json.dumps(proof, sort_keys=True))
-    else:
-        name = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ.head.json")
-        path = args.proof_dir / name
-        verified_rclone_environment(env, bucket, path)
-        print(
-            json.dumps(
-                {
-                    "existing_bucket_verified": True,
-                    "http_status": 200,
-                    "proof": str(path),
-                }
-            )
-        )
+    # This proposal was declined on 2026-10-22. Keep the old evidence and pure
+    # helpers for audit history, but never perform another CLI storage request.
+    raise SystemExit("R2 backup tooling retired: Phil selected copies on his computer.")
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as error:
-        print("R2_PREFLIGHT_FAILED=" + type(error).__name__, file=sys.stderr)
-        raise SystemExit(1) from None
+    main()

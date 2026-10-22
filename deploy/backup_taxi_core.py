@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Encrypt a complete Timescale backup, locally or with verified private R2 copy."""
+"""Encrypt a complete Timescale backup locally for copying to Phil's computer."""
 
 from __future__ import annotations
 
@@ -126,20 +126,25 @@ def main() -> None:
         type=Path,
         default=Path("/etc/rezo-maintenance/backup-recipient.pub"),
     )
-    parser.add_argument(
-        "--r2-config", type=Path, default=Path("/opt/rezo/web/.env.local")
-    )
+    parser.add_argument("--r2-config", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--container", default="rezo-taxi-core-taxi-postgres-1")
     parser.add_argument(
         "--local-only",
         action="store_true",
-        help="Encrypt locally without reading R2 configuration or contacting storage.",
+        default=True,
+        help=(
+            "Local encryption is the only enabled mode; "
+            "copy archives to the operator PC."
+        ),
     )
     args = parser.parse_args()
+    if args.r2_config is not None:
+        parser.error(
+            "Cloudflare backups are disabled by Phil's decision; use the PC copy."
+        )
     os.umask(0o077)
-    # Explicit local mode is also an authorization boundary: do not read R2
-    # credentials or perform any storage network operation on this path.
-    r2 = None if args.local_only else r2_environment(args.r2_config)
+    # Phil selected his computer as the off-VPS destination. No invocation of
+    # this entry point may read R2 credentials or contact object storage.
     recipient = args.recipient_file.read_text().strip()
     if not recipient.startswith(("ssh-ed25519 ", "age1")):
         raise RuntimeError("A supported public encryption recipient is required")
@@ -285,15 +290,9 @@ def main() -> None:
         "encrypted_sha256": local_digest,
         "encrypted_bytes": archive.stat().st_size,
         "offsite_verified": False,
-        "storage_mode": "local-only" if args.local_only else "private-r2",
+        "storage_mode": "local-only",
         "recipient": recipient,
     }
-    if r2 is not None:
-        proof["object_path"] = upload_and_verify(archive, stamp, local_digest, *r2)
-        proof["r2_bucket_preflight_sha256"] = file_sha256(
-            archive.with_name(archive.name + ".r2-preflight.json")
-        )
-        proof["offsite_verified"] = True
     archive.with_suffix(archive.suffix + ".json").write_text(
         json.dumps(proof, indent=2) + "\n"
     )
@@ -302,11 +301,7 @@ def main() -> None:
     for old in args.output_dir.glob("apitaxi-full-????????T??????Z.tar.age*"):
         if old.is_file() and not old.is_symlink() and old.stat().st_mtime < cutoff:
             old.unlink()
-    status = (
-        "LOCAL_ONLY=true OFFSITE_VERIFIED=false"
-        if args.local_only
-        else "OFFSITE_VERIFIED=true"
-    )
+    status = "LOCAL_ONLY=true OFFSITE_VERIFIED=false"
     print(f"BACKUP_OK={archive.name} {status} SHA256={local_digest}")
 
 
