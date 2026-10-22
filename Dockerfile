@@ -1,7 +1,9 @@
 ##### DEV API IMAGE #####
 
-# The integration environment uses the maintained PostgreSQL target and Python
-# 3.12 from Ubuntu 24.04, matching the production application runtime.
+FROM ghcr.io/astral-sh/uv:0.12.10@sha256:2bb3ebca0a796a155094a27773d290c4b074572e6107f171d88d086682fd2500 AS uv-tools
+
+# This Timescale image uses Ubuntu 22.04. Install Python 3.12 explicitly below;
+# its distribution Python 3.10 has reached end of support.
 FROM timescale/timescaledb-ha:pg17.11-ts2.31.0-all@sha256:26e355e055c97d0a51afc415b71fa728dd85664fb24165d595cc8cd0c485b2fc AS base-devenv
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -23,12 +25,18 @@ RUN apt-get install -y \
   sudo \
   vim
 
+COPY --from=uv-tools /uv /usr/local/bin/uv
+ENV UV_PYTHON_INSTALL_DIR=/opt/python
+RUN uv python install --default --install-bin-dir /usr/local/bin 3.12
+
 
 ##### DEV TEST IMAGE #####
 
 FROM base-devenv AS test-devenv
 
-RUN pip3 install tox
+RUN uv venv --python 3.12 /opt/test-tools \
+ && uv pip install --python /opt/test-tools/bin/python 'tox==4.65.0'
+ENV PATH=/opt/test-tools/bin:$PATH
 
 USER postgres
 
