@@ -46,7 +46,7 @@ jobs:
       - name: Check encrypted backup configuration guards
         run: |
           bash -n deploy/backup_taxi_core.sh
-          python3 -B -m unittest discover -s deploy -p test_backup_taxi_core.py
+          python3 -B -m unittest discover -s deploy -p 'test_backup*.py'
 
       - name: Check isolated database migration and cutover guards
         run: |

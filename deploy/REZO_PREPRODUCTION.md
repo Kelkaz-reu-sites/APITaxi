@@ -184,6 +184,30 @@ de propriété/autorisation de la destination. Ne pas retenter ni activer d'envo
 automatique avant résolution de cette autorisation. Il n'existe aucun repli
 automatique vers une destination publique ou vers le mode distant.
 
+Diagnostic ultérieur du même jour, **16:32 UTC** : une unique sonde de texte
+public généré (92 octets, nonce aléatoire), distincte de toute sauvegarde,
+a été autorisée par le contrôle automatique. Son préflight **HEAD signé a
+répondu 200**. La commande `rclone copyto` a ensuite échoué :
+`uploaded=false`, `readback_verified=false`, `deleted=false`,
+`error_type=RuntimeError`. Sa sortie détaillée ayant été supprimée, aucun code
+HTTP de cet échec ni manque de permission précis ne sont établis. Une
+éventuelle présence du texte public n'est pas confirmée. Aucun accès à la DB
+ni envoi de sauvegarde n'a eu lieu ; aucun nouvel essai d'écriture n'est prévu.
+Preuves privées sous `/var/backups/rezo-taxi-core/r2-permission-check/`,
+préfixe de preuve `20261022T163220Z-ef900eb8f0f89bf07b297c5968e68e29ff3468b18d5e9395`.
+
+L'outil versionné `deploy/r2_bucket_preflight.py` utilise un HEAD AWS SigV4,
+un endpoint R2 HTTPS strict et aucune redirection. Il conserve une preuve
+`0600` avant d'autoriser le réglage rclone `no_check_bucket` dans ce seul
+sous-processus. [Cloudflare le documente pour les tokens limités aux objets](https://developers.cloudflare.com/r2/examples/rclone/) ;
+[rclone explique que son contrôle peut autrement tenter de créer le bucket](https://rclone.org/s3/#s3-no-check-bucket).
+Le contrôle d'existence signé reste donc obligatoire. Aucun contrôle HEAD des
+objets ni vérification du contenu n'est désactivé.
+Le script réalise seulement ce HEAD par défaut ; `--execute-public-probe`
+reste une action d'écriture distincte qui nécessite une autorisation explicite.
+Son interface ne prend aucun fichier à envoyer et limite la sonde au préfixe
+`operations/backups/taxi-core/permission-check/`. Le cron reste `--local-only`.
+
 Le lanceur quotidien appelle l'outil via le wrapper de notification REZO.
 Contrôler la fraîcheur et les empreintes locales, et tester le déchiffrement
 avec la clé privée du poste. Une archive lisible ne remplace pas la recette de
@@ -578,6 +602,13 @@ review.
 3. Check operator API errors and HTTP timeout logs.
 4. Lower traffic or disable live taxi in REZO facade if user experience becomes
    misleading.
+
+The prepared R2 preflight preserves a signed HEAD check before enabling
+rclone's object-scoped mode. A future public probe records only the operation,
+tool exit code and allowlisted HTTP/S3 error codes, when present; raw storage
+output, URLs and credentials are never saved. The single probe already executed
+still has no detailed HTTP error code. No further probe or database upload was
+performed after that failure; the installed backup remains local-only.
 
 ## 12. Acceptance checklist
 

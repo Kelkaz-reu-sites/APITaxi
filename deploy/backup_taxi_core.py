@@ -77,6 +77,11 @@ def r2_environment(path: Path) -> tuple[dict[str, str], str]:
 def upload_and_verify(
     archive: Path, stamp: str, local_digest: str, env: dict[str, str], bucket: str
 ) -> str:
+    from r2_bucket_preflight import verified_rclone_environment
+
+    env = verified_rclone_environment(
+        env, bucket, archive.with_name(archive.name + ".r2-preflight.json")
+    )
     object_path = (
         f"operations/backups/taxi-core/{stamp[:4]}/{stamp[4:6]}/{archive.name}"
     )
@@ -285,6 +290,9 @@ def main() -> None:
     }
     if r2 is not None:
         proof["object_path"] = upload_and_verify(archive, stamp, local_digest, *r2)
+        proof["r2_bucket_preflight_sha256"] = file_sha256(
+            archive.with_name(archive.name + ".r2-preflight.json")
+        )
         proof["offsite_verified"] = True
     archive.with_suffix(archive.suffix + ".json").write_text(
         json.dumps(proof, indent=2) + "\n"
