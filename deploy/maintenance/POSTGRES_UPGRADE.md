@@ -1,9 +1,37 @@
-# PostgreSQL et TimescaleDB — restauration testée, bascule à revoir
+# PostgreSQL et TimescaleDB — migration réalisée et preuves
 
-22 octobre 2026. Les essais isolés ont réussi ; **aucune bascule de production
-n'a été effectuée** par cet outillage. La production reste PostgreSQL 14.6 /
-TimescaleDB 2.9.2 au moment de ces preuves. PostgreSQL 14 arrive en fin de support
-le 12 novembre 2026, selon [PostgreSQL](https://www.postgresql.org/support/versioning/).
+**Production vérifiée le 22 octobre 2026 : PostgreSQL17.11, TimescaleDB2.31.0,
+Toolkit1.26.0 et PostGIS3.6.4.** La bascule a été autorisée puis committée à
+20:51:22 UTC. Les cinq services Taxi sont sains, sans redémarrage supplémentaire.
+PostgreSQL17 est supporté jusqu'au **8 novembre 2029**, date vérifiée dans la
+[politique officielle](https://www.postgresql.org/support/versioning/) le
+22 octobre. L'ancien PostgreSQL14.6/TimescaleDB2.9.2 est conservé uniquement dans
+son ancien volume, hors service.
+
+## Bascule effective du 22 octobre
+
+- Code validé et exécuté : `9d69c19120fd1d3e6cf4430e14ba5cf28e5c1669` ; treize contrôles locaux réels réussis, dont 266 tests applicatifs et 54 sous-tests. GitHub reste `not_used_no_credits`.
+- Tag des trois applications conservé : `8827452`. L'invocation utilise explicitement `REZO_TAXI_CORE_IMAGE_TAG=8827452` ; le défaut `:local` désignait d'anciennes images et avait été refusé par le précontrôle.
+- Reçu de commit : `/var/backups/rezo-maintenance-test-cutover-20261022T204944Z/COMMITTED`. Authentification SCRAM validée, aucune exposition du backend avant ses contrôles SQL/Redis et sa santé.
+- Volume actif : `rezo-taxi-core_taxi-postgres-17-data`. Ancien volume conservé : `rezo-taxi-core_taxi-postgres-data` ; aucun retour automatique sur cet ancien volume après reprise des écritures.
+- Les empreintes complètes de la base active avant exposition égalent la source gelée. Les deux jobs métier compression/rétention gardent leur configuration, leurs intervalles, limites, propriétaire et état `scheduled=true`. Le job système historique est remplacé comme prévu par TimescaleDB ; quatre jobs sont activés au total. Aucun correctif SQL de job n'a été nécessaire.
+- Scan final des neuf conteneurs/huit images REZO : **0 HIGH/0 CRITICAL** ; audit CA des neuf conteneurs : zéro anomalie. Les conteneurs temporaires de migration sont supprimés.
+
+Les preuves privées sont copiées sur le PC sous
+`/home/phil/geo/.maintenance-backups/taxi/migration-20261022T204944Z/`.
+L'empreinte complète source gelée et celle de PG17 avant exposition sont égales :
+`4423aef9836e3e673e10ae67aa306711ff1214f462fc478fc6536f777144d9a3`.
+Le backup pendant gel `apitaxi-full-20261022T204948Z.tar.age` a été réellement
+copié, relu par SHA256 et déchiffré sur le PC avant la suite de la migration :
+`9ad671774dfc3348451558c59f9eef01647dfaeebda99a83fcafc00233487821`.
+Son reçu `--frozen --publish` a été mesuré avec les trois writers arrêtés.
+
+Le vrai wrapper quotidien `/usr/local/sbin/rezo-taxi-core-backup` a ensuite
+réussi avec PG17 actif : `apitaxi-full-20261022T205554Z.tar.age`, 2991012 octets,
+SHA256 `2617baa8a59982562cdf10133db1ea318a20e68f2f1d716b48e01fcfee847e0c`.
+Cette archive PG17 a également été copiée et déchiffrée sur le PC, avec
+validation TAR/dump et reçu mesuré. Les JSON serveur restent
+`storage_mode=local-only`, `offsite_verified=false` ; la preuve PC est séparée.
 
 ## Protocole éprouvé
 
@@ -39,8 +67,8 @@ Pont : timescale/timescaledb-ha:pg14-ts2.19-all@sha256:127e0220562ee2e5b1abe001d
 Cible : timescale/timescaledb-ha:pg17.11-ts2.31.0-all@sha256:26e355e055c97d0a51afc415b71fa728dd85664fb24165d595cc8cd0c485b2fc
 ```
 
-La cible des **nouveaux essais et de la proposition de bascule** est la variante
-CA et outils Go reconstruite sur le VPS depuis cette même base :
+L'image **active** est la variante CA et outils Go reconstruite sur le VPS
+depuis cette même base :
 `sha256:f180ded02bf7e10135f62ae8e6ab8b59425d406dbe1eacaa33a1439046e39c0a`
 (`deploy/maintenance/Dockerfile.pg17-ca`). Le paquet CA et les trois binaires Go
 ont changé ; les hashes des moteurs postgres/Timescale/PostGIS restent identiques.
@@ -65,10 +93,10 @@ Rapport : `/var/lib/rezo-maintenance/scans/pg17-candidate-20261022.json`, SHA256
 Copie PC privée et smoke CA/fonctions sous
 `/home/phil/geo/.maintenance-backups/taxi/pg17-target-20261022/`.
 
-Aucun conteneur de production n'a été remplacé. La revue du scan, du smoke et de
-la répétition exacte a été donnée le 22 octobre ; `TARGET_SECURITY_REVIEWED=True`
-enregistre cette revue pour ce pin uniquement. La validation du SHA final, le
-backup frais vérifié sur PC et la décision de fenêtre restent obligatoires.
+La revue du scan, du smoke et de la répétition exacte a été donnée le 22 octobre ;
+`TARGET_SECURITY_REVIEWED=True` enregistre cette revue pour ce pin uniquement.
+La validation du SHA final, le backup frais vérifié sur PC et la décision de
+fenêtre ont ensuite été obtenus avant la bascule effective.
 Un ancien `PASS` ne suffit plus :
 `rehearsal.json` lie l'image source/cible, les scripts et les empreintes mesurées,
 et le contrôleur impose moins de 24 heures.
@@ -121,17 +149,21 @@ la production n'avait pas redémarré. Les essais initiaux puis la répétition 
 20:18 UTC sur la cible CA/Go ont réussi. Le conteneur source et son démarrage
 sont restés inchangés pendant cette dernière répétition.
 
-## Préparation obligatoire avant la bascule
+## Conditions appliquées à la bascule
 
 - Livrer le code et obtenir la CI complète verte pour le SHA exact sur `rezo/internal-service-base`, ou la validation locale mesurée ci-dessous si GitHub Actions n'a plus de crédits. Une CI absente/rouge ne devient jamais une CI réussie.
 - Préparer un commit séparé du Compose de production : image cible figée et nouveau volume logique `taxi-postgres-17-data`, nom effectif `rezo-taxi-core_taxi-postgres-17-data`. Le volume doit encore être absent. Conserver la déclaration de l'ancien volume pour le rollback.
 - Ne pas exécuter `docker compose up` avec ce nouveau Compose avant l'outil de migration : une base vide ne doit pas démarrer à la place de l'ancienne.
 - Créer un backup chiffré avec `deploy/backup_taxi_core.py --local-only`, copier l'archive et sa preuve sur l'ordinateur de Phil, puis vérifier la copie par relecture SHA-256 et déchiffrement age. Phil a écarté R2 comme destination de sauvegarde. Avant bascule, obtenir un reçu PC mesuré `--operator-receipt` de moins d'une heure, avec digest et inventaire courants (`database_image_id`, `application_image_id`, `source_checkout_sha`). Le JSON du backup serveur garde **`offsite_verified=false`** : aucune édition de ce booléen ne remplace le reçu séparé. Ne pas stocker la clé privée de déchiffrement sur le VPS.
 - Garder les credentials applicatifs dans leur configuration protégée ; `roles.sql --no-role-passwords` ne sauvegarde pas les mots de passe. Prévoir leur restauration séparée pour une reprise après perte du serveur.
-- Suspendre toute livraison concurrente pendant la fenêtre de bascule. L'outil emploie son propre verrou, que les déploiements existants ne prennent pas nécessairement.
+- Suspendre toute livraison concurrente pendant la fenêtre de bascule. L'invocation prend le verrou commun `/tmp/rezo-production-deploy.lock` avant `sudo`, en complément du verrou propre à l'outil.
 - Utiliser `/opt/rezo-taxi-core/.env`, comme le Compose réellement en service. Le contrôle du 22 octobre a confirmé qu'il correspond aux variables live ; l'ancien `/etc/rezo-taxi-core/production.env` diffère sur le handoff et Sentry. L'outil vérifie la concordance des variables applicatives avant d'arrêter un service, sans afficher leurs valeurs.
 
-## Commande unique proposée pour revue
+## Recette contrôlée de la fenêtre du 22 octobre
+
+Cette recette est conservée pour la traçabilité. La migration a été exécutée ;
+ne pas la rejouer sur la base PG17 active. Ses gardes attendent l'ancienne image
+et un volume cible absent. Toute autre migration exige une nouvelle revue.
 
 ### Validation locale si les crédits GitHub sont épuisés
 
@@ -187,7 +219,9 @@ faite. Remplacer les trois valeurs majuscules par les preuves de la livraison
 exacte, puis faire relire la commande avant d'ajouter `--execute`.
 
 ```bash
-sudo python3 /opt/rezo-taxi-core/deploy/maintenance/cutover_postgres.py \
+/usr/bin/flock -n /tmp/rezo-production-deploy.lock \
+  sudo -n env REZO_TAXI_CORE_IMAGE_TAG=8827452 \
+  python3 /opt/rezo-taxi-core/deploy/maintenance/cutover_postgres.py \
   --expected-prod-sha SHA_COMPLET_COMMIT_PRODUCTION \
   --ci-run IDENTIFIANT_RUN_CI_VERT \
   --offsite-proof /CHEMIN_PROTEGE/apitaxi-full-HORODATAGE.tar.age.json \
@@ -197,7 +231,8 @@ sudo python3 /opt/rezo-taxi-core/deploy/maintenance/cutover_postgres.py \
   --test-evidence-sha256 70c0f48db1235e04e444f1c31d76edfe38fdb3a6d6e21f1bdf0380621ddbe5fa
 ```
 
-Cette proposition n'a pas été exécutée en production. Elle exige un checkout
+Le précontrôle puis l'exécution autorisée ont réussi sur le SHA `9d69c19`, avec
+la preuve locale mesurée. La recette exige un checkout
 propre au SHA attendu, la CI de ce SHA/branche/workflow réussie ou le reçu local
 mesuré avec ses logs, l'image source
 exacte, la preuve de restauration complète et un backup hors site de moins d'une
@@ -209,7 +244,7 @@ Pour utiliser la preuve locale, remplacer `--ci-run ...` par les deux options
 et `--manual-validation-sha256 SHA256_RECU_LOCAL_REVU`. Les deux modes sont
 mutuellement exclusifs ; la sortie précise la source de validation.
 
-Avec `--execute`, l'outil proposé :
+Avec `--execute`, l'outil utilisé :
 
 1. Arrête beat/worker/backend web, puis refait un backup local chiffré pendant le gel. Il affiche `FROZEN_BACKUP_READY` avec son basename/digest et attend au maximum dix minutes un **nouveau** reçu PC associé à cette archive. Depuis le PC, relancer `copy-backup` avec les valeurs affichées et **`--frozen --publish`** ; le serveur vérifie réellement que les trois writers sont arrêtés avant d'accepter ce reçu. Absence de PC/réseau, échec age/SHA ou reçu ancien : arrêt de l'opération et reprise de l'ancienne production avant exposition. Ce backup conserve encore les états normaux des jobs Timescale.
 2. Sauvegarde leurs états, suspend la planification des jobs Timescale (compression, rétention et tâches système) et attend la fin des jobs actifs avant le dump final. Les restaurations d'essai ont montré que ces jobs existent ; arrêter seulement Celery ne les gèle pas.
@@ -242,7 +277,9 @@ explicitement son état de planification initial, conformément au
 [script officiel de migration](https://github.com/timescale/timescaledb/blob/2.31.0/sql/updates/2.14.2--2.15.0.sql).
 Tout autre changement inattendu d'identité d'un job interrompt la préparation.
 
-Après succès : vérifier les parcours applicatifs, versions réelles, état des
-workers, sauvegarde/restauration PG17 et réception des alertes ; documenter le SHA,
-le nouveau volume et le backup dans `doc/DEPLOY.md` REZO. Ne supprimer aucun ancien
-volume avant validation séparée de la rétention/rollback.
+Après succès, les versions réelles, les cinq services, les jobs, la sauvegarde
+quotidienne PG17 et sa copie/déchiffrement PC ont été vérifiés. Les audits CA et
+images complets sont verts ; aucun message de test n'a été envoyé. Les parcours
+publics REZO et sa connexion à la base restent surveillés par les contrôles
+existants. Ne supprimer aucun ancien volume avant validation séparée de sa
+rétention.

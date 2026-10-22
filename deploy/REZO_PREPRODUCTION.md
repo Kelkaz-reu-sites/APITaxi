@@ -30,7 +30,7 @@ Minimum services:
 - `rezo-taxi-core-web` : Gunicorn + Flask API ;
 - `rezo-taxi-core-worker` : Celery worker ;
 - `rezo-taxi-core-beat` : Celery beat ;
-- PostgreSQL 14+ with PostGIS and `pgcrypto` ;
+- PostgreSQL 17.11, TimescaleDB 2.31.0 and PostGIS 3.6.4, with `pgcrypto` ;
 - Redis 7+ with persistence enabled for preproduction if the host supports it.
 
 Recommended image tags:
@@ -42,6 +42,15 @@ rezo-taxi-core-beat:<git-sha>
 ```
 
 The same `<git-sha>` must be used for the three application services.
+
+La production Taxi est passée sur PostgreSQL17 le 22 octobre 2026 à 20:51 UTC,
+après validation locale complète du SHA `9d69c19`, restauration isolée et copie
+PC chiffrée du backup de gel. Le support de PostgreSQL17 court jusqu'au
+[8 novembre 2029](https://www.postgresql.org/support/versioning/). Les applications
+gardent leur release `8827452`. Le nouveau volume PG17 est actif et l'ancien
+volume PG14 reste conservé hors service. Le wrapper quotidien a produit ensuite
+une vraie sauvegarde PG17 copiée et déchiffrée sur le PC. Les preuves et les
+conditions de reprise sont dans [POSTGRES_UPGRADE.md](maintenance/POSTGRES_UPGRADE.md).
 
 ## 3. Environment variables
 
@@ -708,7 +717,7 @@ performed after that failure; the installed backup remains local-only.
 
 A preproduction deployment is acceptable when:
 
-- CI is green for the deployed commit ;
+- full CI is green for the exact commit, or its measured local validation is complete while Actions credits are unavailable ;
 - image tags for `web`, `worker` and `beat` match ;
 - secrets are provided outside Git ;
 - PostgreSQL backup exists before migration ;

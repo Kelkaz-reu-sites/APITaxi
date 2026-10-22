@@ -39,7 +39,9 @@
     "Kelkaz-reu-sites/APITaxi": {
       "branch": "rezo/internal-service-base",
       "audit_workflow": "rezo-taxi-core-ci.yml",
-      "additional_workflows": ["dependency-graph.yml"],
+      "additional_workflows": [
+        "dependency-graph.yml"
+      ],
       "audit_max_age_hours": 36,
       "dependabot_max_age_hours": 240,
       "pull_request_warning_days": 14,
@@ -64,9 +66,12 @@
       "source": "https://devguide.python.org/versions/"
     },
     {
-      "name": "PostgreSQL 14 (APITaxi/TimescaleDB)",
-      "eol": "2026-11-12",
-      "source": "https://www.postgresql.org/support/versioning/"
+      "name": "PostgreSQL 17 (APITaxi/TimescaleDB)",
+      "eol": "2029-11-08",
+      "source": "https://www.postgresql.org/support/versioning/",
+      "active_version": "17.11",
+      "verified_at": "2026-10-22",
+      "image_digest": "sha256:f180ded02bf7e10135f62ae8e6ab8b59425d406dbe1eacaa33a1439046e39c0a"
     }
   ],
   "reviews": [
@@ -89,10 +94,10 @@
       "reason": "Vérifier avis des fournisseurs, version PostgreSQL effective, sauvegardes et versions API ; une mise à jour npm ne couvre pas ces services."
     },
     {
-      "name": "Migrer PostgreSQL 14 APITaxi avant sa fin de support",
+      "name": "PostgreSQL 17 APITaxi : correctifs, TimescaleDB et preuves de sauvegarde/restauration",
       "owner": "Phil",
       "due": "2026-11-05",
-      "reason": "Préparer sauvegarde, restauration testée et compatibilité TimescaleDB ; aucune migration majeure automatique."
+      "reason": "Migration effectuee le 2026-10-22 ; revoir publications amont, image finale, jobs compression/retention et copies PC. Aucune migration majeure automatique."
     },
     {
       "name": "Archives OTP/Java et BOM Jackson, composants intégrés aux images Go et dépendances natives Addok",
