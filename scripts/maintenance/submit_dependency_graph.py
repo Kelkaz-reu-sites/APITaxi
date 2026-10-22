@@ -123,7 +123,7 @@ def github(endpoint: str, payload: dict | None = None) -> dict:
         "api",
         "-H",
         "Accept: application/vnd.github+json",
-        "repos/" + REPOSITORY + "/" + endpoint,
+        "repos/" + REPOSITORY + ("/" + endpoint if endpoint else ""),
     ]
     if payload is not None:
         command += ["--method", "POST", "--input", "-"]

@@ -2,11 +2,27 @@
 
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import submit_dependency_graph as graph
 
 
 class ProductionSnapshotTests(unittest.TestCase):
+    def test_repository_metadata_endpoint_has_no_trailing_slash(self):
+        with patch.object(
+            graph.subprocess,
+            "run",
+            return_value=SimpleNamespace(
+                returncode=0, stdout='{"default_branch":"rezo/internal-service-base"}'
+            ),
+        ) as request:
+            result = graph.github("")
+        self.assertEqual(
+            request.call_args.args[0][-1], "repos/Kelkaz-reu-sites/APITaxi"
+        )
+        self.assertEqual(result["default_branch"], graph.BRANCH)
+
     def test_full_lock_is_exactly_the_83_corrected_runtime_versions(self):
         root = Path(__file__).resolve().parents[2]
         lock = (root / "requirements.lock").read_text()
