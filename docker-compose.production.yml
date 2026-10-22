@@ -71,14 +71,16 @@ x-app-depends-on: &app-depends-on
 
 services:
   taxi-postgres:
-    image: timescale/timescaledb-ha:pg14-ts2.9-latest
+    # Reviewed local immutable image. Apply only through the guarded migration;
+    # a normal compose up would start the new empty volume before the restore.
+    image: sha256:f180ded02bf7e10135f62ae8e6ab8b59425d406dbe1eacaa33a1439046e39c0a
     restart: unless-stopped
     environment:
       POSTGRES_DB: "${POSTGRES_DB:?Set POSTGRES_DB in the compose env file}"
       POSTGRES_USER: "${POSTGRES_USER:?Set POSTGRES_USER in the compose env file}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the compose env file}"
     volumes:
-      - taxi-postgres-data:/home/postgres/pgdata/data
+      - taxi-postgres-17-data:/home/postgres/pgdata/data
       - ./devenv/postgres-init/999_rezo_extensions.sql:/docker-entrypoint-initdb.d/999_rezo_extensions.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER:-apitaxi}\" -d \"$${POSTGRES_DB:-apitaxi}\""]
@@ -170,7 +172,9 @@ services:
     command: ["bash", "-lc", "cd APITaxi_models2 && alembic current && alembic upgrade head && alembic current"]
 
 volumes:
+  # Retain the original volume declaration and data for the reviewed rollback.
   taxi-postgres-data:
+  taxi-postgres-17-data:
   taxi-redis-data:
 
 networks:
