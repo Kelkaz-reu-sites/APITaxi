@@ -39,6 +39,7 @@
     "Kelkaz-reu-sites/APITaxi": {
       "branch": "rezo/internal-service-base",
       "audit_workflow": "rezo-taxi-core-ci.yml",
+      "additional_workflows": ["dependency-graph.yml"],
       "audit_max_age_hours": 36,
       "dependabot_max_age_hours": 240,
       "pull_request_warning_days": 14,

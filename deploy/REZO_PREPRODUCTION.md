@@ -244,6 +244,39 @@ les audite chaque jour et avant livraison. Pour réactualiser le verrouillage,
 utiliser `uv pip compile requirements.txt --python-version 3.12 --generate-hashes
 --output-file requirements.lock`, puis relancer l'audit et les tests.
 
+### Graphe GitHub et alertes Dependabot
+
+Le 22 octobre 2026, le SBOM GitHub conservait Werkzeug 3.1.6 et geopy 2.4.1
+pour `requirements.txt`, tandis que le verrou et les 83 paquets déployés
+contenaient déjà Werkzeug 3.1.9 et geopy 2.5.0. Les alertes #14 et #13 décrivaient
+donc ce graphe décalé. La branche par défaut reste
+`rezo/internal-service-base`, branche de production du fork.
+
+`scripts/maintenance/submit_dependency_graph.py` soumet les versions exactes
+du `requirements.lock` committé, avec `requirements.txt` comme manifeste,
+un detector/correlator stables et une portée runtime. Les dépendances
+transitives ne sont pas inventées ni résolues à nouveau. Le programme exige
+le HEAD actuel de la branche de production, puis vérifie que le SBOM exporté
+correspond au verrou. Aucune alerte n'est fermée manuellement.
+[GitHub donne la priorité aux snapshots soumis par l'utilisateur pour un même manifeste](https://docs.github.com/en/rest/dependency-graph/dependency-submission).
+
+Le workflow `dependency-graph.yml` actualise ce graphe après modification du
+verrou et chaque jour à **03:17 UTC**, avec `contents: write` limité à son seul
+job, sans exécution sur PR. **Les crédits Actions sont épuisés au 22 octobre :
+ce contrôle planifié n'est pas prouvé actif aujourd'hui.** Sa fraîcheur reste
+surveillée et peut être rouge. Aucun run n'a été lancé pour cette correction ;
+le commit utilise `[skip ci]` et l'envoi ponctuel passe directement par l'API.
+Tant que les crédits ne sont pas rétablis, effectuer cet envoi après chaque
+changement validé du verrou, depuis un checkout propre et synchronisé :
+
+```bash
+python3 -B scripts/maintenance/submit_dependency_graph.py --submit
+```
+
+Sans `--submit`, le programme produit uniquement un résumé local et ne contacte
+pas GitHub. Cette mise à jour de métadonnées ne reconstruit et ne redémarre
+aucun service ; les images applicatives restent celles de `8827452`.
+
 Create a PostgreSQL logical backup before migrations:
 
 ```bash

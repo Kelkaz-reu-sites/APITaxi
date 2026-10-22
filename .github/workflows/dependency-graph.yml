@@ -1,0 +1,42 @@
+name: Production dependency graph
+
+on:
+  push:
+    branches: [rezo/internal-service-base]
+    paths:
+      - requirements.txt
+      - requirements.lock
+      - scripts/maintenance/submit_dependency_graph.py
+      - scripts/maintenance/test_dependency_graph.py
+      - .github/workflows/dependency-graph.yml
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apitaxi-production-dependency-graph
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    if: github.repository == 'Kelkaz-reu-sites/APITaxi' && github.ref == 'refs/heads/rezo/internal-service-base'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Check production snapshot without network
+        run: python3 -B -m unittest discover -s scripts/maintenance -p test_dependency_graph.py
+      - name: Submit exact committed production lock and verify the graph
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B scripts/maintenance/submit_dependency_graph.py --submit
