@@ -137,7 +137,7 @@ checks can be reproduced with:
 
 ```bash
 python3 -m compileall -q APITaxi APITaxi2 APITaxi_models2 deploy/conf
-pip-audit -r requirements.txt --strict
+pip-audit -r requirements.lock --strict --require-hashes
 docker compose config >/tmp/rezo-taxi-compose.yml
 docker compose --profile test run --rm taxi-test
 docker build --target web -t rezo-taxi-core-web:test .
@@ -161,6 +161,21 @@ Le lanceur quotidien doit appeler cet outil via le wrapper de notification REZO.
 Après installation, contrôler la preuve `OFFSITE_VERIFIED=true` et tester aussi
 le déchiffrement avec la clé privée du poste. Une archive lisible ne remplace pas
 la recette de restauration isolée avant migration PostgreSQL/TimescaleDB.
+
+Le wrapper versionné `deploy/backup_taxi_core.sh` prend un verrou, appelle
+`/opt/rezo/scripts/notify_cron.sh` sur échec, et stocke les nouvelles archives
+dans `/var/backups/rezo-taxi-core/full` (répertoire root `0700`, fichiers `0600`).
+Le cron réel est celui de **debian**, à `30 3 * * *`, et appelle déjà
+`/home/debian/backups/backup_taxi_core.sh`. Après livraison du SHA validé, ce
+lanceur doit exécuter `sudo -n /usr/local/sbin/rezo-taxi-core-backup`, sans
+argument. Installer le wrapper versionné à cet emplacement, root/root `0755`,
+dans un répertoire non modifiable par debian. Conserver son entrée et son
+ancien chemin de log ; ne pas créer un second job root concurrent.
+
+Installer uniquement la clé **publique** `~/.ssh/id_ed25519.pub` de Phil dans
+`/etc/rezo-maintenance/backup-recipient.pub` (propriétaire root), puis lancer
+directement le programme Python pour la première preuve de backup, sans tester
+de notification externe. Contrôler l'archive chiffrée et son fichier `.json`.
 
 Les dépendances applicatives sont désormais installées depuis
 `requirements.lock` avec vérification de leurs empreintes ; la CI Python 3.12
@@ -219,6 +234,17 @@ shell commands from running.
 ## 8. Start or update services
 
 ### Compose deployment on the Rezo VPS
+
+**Existing live VPS, checked 22 October 2026:** follow REZO `doc/DEPLOY.md`
+and preserve `/opt/rezo-taxi-core/.env`. It matches the running service settings;
+the historical `/etc/rezo-taxi-core/production.env` differs for handoff and
+Sentry. The initial-install commands below do not replace this live environment.
+For the dependency/backup maintenance delivery, use the exact SHA with green
+CI, save the current image identities and a complete backup, fast-forward the
+checkout, then build and recreate only `taxi-web`, `taxi-worker`, `taxi-beat`
+with the live `.env`. No Alembic or PostgreSQL/Timescale migration belongs to
+that delivery; the separate guarded migration runbook is
+[`maintenance/POSTGRES_UPGRADE.md`](maintenance/POSTGRES_UPGRADE.md).
 
 The preferred VPS deployment path is `docker-compose.production.yml`. It keeps
 PostgreSQL, Redis, web, worker and beat in one project, does not publish the

@@ -27,7 +27,9 @@ RUN apt-get install -y \
 
 COPY --from=uv-tools /uv /usr/local/bin/uv
 ENV UV_PYTHON_INSTALL_DIR=/opt/python
-RUN uv python install --default --install-bin-dir /usr/local/bin 3.12
+ENV UV_PYTHON_BIN_DIR=/usr/local/bin
+RUN uv python install --default 3.12 \
+ && python3 -c "import sys, tomllib; assert sys.version_info[:2] == (3, 12)"
 
 
 ##### DEV TEST IMAGE #####

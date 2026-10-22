@@ -9,3 +9,11 @@
 Dockerfile
 Makefile
 .circleci
+.env
+.env.*
+**/.env
+**/.env.*
+.secrets
+**/.secrets
+.venv
+**/.venv

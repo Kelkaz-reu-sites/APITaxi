@@ -92,6 +92,12 @@
       "owner": "Phil",
       "due": "2026-11-05",
       "reason": "Préparer sauvegarde, restauration testée et compatibilité TimescaleDB ; aucune migration majeure automatique."
+    },
+    {
+      "name": "Archives OTP/Java et BOM Jackson, composants intégrés aux images Go et dépendances natives Addok",
+      "owner": "Phil",
+      "due": "2026-11-05",
+      "reason": "Les versions téléchargées par URL et les corrections de dépendances intégrées exigent revue des publications officielles, scan de l’image finale et recette avant déploiement."
     }
   ]
 }

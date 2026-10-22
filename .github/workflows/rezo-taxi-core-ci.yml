@@ -44,7 +44,14 @@ jobs:
         run: pip-audit -r requirements.lock --strict --require-hashes
 
       - name: Check encrypted backup configuration guards
-        run: python3 -B -m unittest discover -s deploy -p test_backup_taxi_core.py
+        run: |
+          bash -n deploy/backup_taxi_core.sh
+          python3 -B -m unittest discover -s deploy -p test_backup_taxi_core.py
+
+      - name: Check isolated database migration and cutover guards
+        run: |
+          bash -n deploy/maintenance/test_postgres_upgrade.sh
+          python3 -B -m unittest discover -s deploy/maintenance -p 'test_*.py'
 
   tests:
     name: Run APITaxi test suite
@@ -74,8 +81,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
+      - name: Add harmless secret-file sentinels to the build context
+        run: |
+          printf '%s\n' 'BUILD_CONTEXT_SENTINEL=not-a-secret' > .env
+          mkdir -p .secrets
+          printf '%s\n' 'not-a-secret' > .secrets/build-context-sentinel
+
       - name: Build web image
         run: docker build --target web -t rezo-taxi-core-web:test .
+
+      - name: Verify secret files are absent from the application image
+        run: >-
+          docker run --rm --network none --entrypoint /bin/sh
+          rezo-taxi-core-web:test
+          -c 'test ! -e /app/.env && test ! -e /app/.secrets'
 
       - name: Build worker image
         run: docker build --target worker -t rezo-taxi-core-worker:test .
