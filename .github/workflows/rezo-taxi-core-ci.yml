@@ -96,6 +96,11 @@ jobs:
           rezo-taxi-core-web:test
           -c 'test ! -e /app/.env && test ! -e /app/.secrets'
 
+      - name: Verify locked runtime without build tools or missing native libraries
+        run: >-
+          docker run --rm --network none --entrypoint /venv/bin/python
+          rezo-taxi-core-web:test -B /app/deploy/check_runtime.py
+
       - name: Build worker image
         run: docker build --target worker -t rezo-taxi-core-worker:test .
 

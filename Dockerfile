@@ -102,27 +102,48 @@ FROM worker-devenv AS worker-beat-devenv
 CMD watchmedo auto-restart --directory=/git/ --pattern='*.py' --recursive -- celery --app=APITaxi2.celery_worker beat -s /tmp/celerybeat-schedule --pidfile /tmp/celerybeat.pid
 
 
+##### PROD DEPENDENCY BUILD IMAGE #####
+FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac AS runtime-dependencies
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  libpq-dev \
+  python3-pip \
+  python3-venv \
+  libgeos-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m venv /venv \
+ && /venv/bin/pip install --no-cache-dir 'pip==26.2.2' 'setuptools==80.10.2'
+COPY requirements.txt requirements.lock /build/
+RUN /venv/bin/pip install --no-cache-dir --require-hashes -r /build/requirements.lock \
+ && /venv/bin/pip check \
+ && /venv/bin/pip uninstall -y pip setuptools \
+ && /venv/bin/python -c "import importlib.util; assert importlib.util.find_spec('pip') is None; assert importlib.util.find_spec('setuptools') is None; import celery, flask_security, passlib.context, psycopg2, shapely"
+
+
 ##### PROD RUNTIME IMAGE #####
-FROM ubuntu:24.04 AS runtime
+FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DEBCONF_NONINTERACTIVE_SEEN=true
 ENV PYTHONUNBUFFERED=1
 
-RUN apt-get update && apt-get install -y \
-  libpq-dev \
-  python3-pip \
-  python3-venv \
-  libgeos-dev \
-  less
+# Keep only the interpreter and shared libraries in the deployed image. The
+# build stage owns pip and development headers, including linux-libc-dev.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  ca-certificates \
+  libpq5 \
+  python3 \
+  libgeos-c1t64 \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY --from=runtime-dependencies /venv /venv
 
 RUN useradd --system --create-home --home-dir /home/api --shell /usr/sbin/nologin api
 
 # Required by click with Python3, cf https://click.palletsprojects.com/python3/
 ENV LC_ALL=C.UTF-8
-
-RUN python3 -m venv /venv
-RUN /venv/bin/pip3 install -U "pip<27" "setuptools<81"
 
 # `flask shell` and flask commands like `flask create_user` need FLASK_APP to be set.
 ENV FLASK_APP=APITaxi
@@ -132,16 +153,12 @@ ENV PATH=/venv/bin/:$PATH
 RUN mkdir -p /var/run/api-taxi
 RUN chown api:api /var/run/api-taxi
 
-# COPY requirements first before running `pip3 install .` to use Docker cache if
-# dependencies did not change.
-COPY requirements.txt requirements.lock /app/
 WORKDIR /app
-
-RUN /venv/bin/pip3 install --require-hashes -r requirements.lock
 
 # Application source code
 COPY . /app
-RUN chown -R api:api /app /home/api
+RUN chown -R api:api /app /home/api \
+ && /venv/bin/python -B deploy/check_runtime.py
 
 USER api
 

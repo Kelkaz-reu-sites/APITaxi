@@ -143,7 +143,25 @@ docker compose --profile test run --rm taxi-test
 docker build --target web -t rezo-taxi-core-web:test .
 docker build --target worker -t rezo-taxi-core-worker:test .
 docker build --target beat -t rezo-taxi-core-beat:test .
+docker run --rm --network none --entrypoint /venv/bin/python \
+  rezo-taxi-core-web:test -B /app/deploy/check_runtime.py
 ```
+
+Le 22 octobre 2026, les crédits GitHub Actions ont été épuisés après le run
+vert du commit `78c8936`. La livraison corrective du runtime utilise donc les
+contrôles locaux ci-dessus et le déploiement SSH explicitement autorisé, avec
+un commit `[skip ci]`. Conserver leurs preuves et ne pas présenter ce commit
+comme validé par un nouveau run GitHub. Aucun changement de PostgreSQL ou de
+schéma ne fait partie de cette livraison.
+
+Le runtime final ne contient plus `pip`, `setuptools`, les compilateurs ni les
+en-têtes de développement : l'étage de construction installe les 83 paquets
+verrouillés, vérifie leurs dépendances, puis retire ses outils avant de copier
+le venv. Python, `libpq5` et `libgeos-c1t64` restent installés dans l'image finale.
+`deploy/check_runtime.py` vérifie les versions exactes, les imports applicatifs
+et la résolution des bibliothèques natives. Cette séparation retire les
+copies vulnérables embarquées dans `pip` (msgpack 1.1.2, setuptools 70.3.0,
+urllib3 2.7.0) et `linux-libc-dev`, sans ignorer d'avis de sécurité.
 
 ## 6. Database backup before deploy
 
@@ -185,10 +203,11 @@ dans un répertoire non modifiable par debian. Conserver son entrée et son
 ancien chemin de log ; ne pas créer un second job root concurrent.
 
 La livraison des scripts de backup seuls ne reconstruit ni ne redémarre les
-conteneurs : les images applicatives du 22 octobre restent construites depuis
-`78c8936123ddeb6396c80823db44b036a20ed77d`. Distinguer le SHA du checkout des
-outils (`source_checkout_sha`) et les identités binaires enregistrées dans le
-manifeste (`application_image_id`, `database_image_id`).
+conteneurs. Les premières images applicatives du 22 octobre ont été construites
+depuis `78c8936123ddeb6396c80823db44b036a20ed77d` ; la livraison corrective du
+runtime possède son propre SHA et sa preuve de déploiement. Distinguer le SHA
+du checkout des outils (`source_checkout_sha`) et les identités binaires
+enregistrées dans le manifeste (`application_image_id`, `database_image_id`).
 
 Installer uniquement la clé **publique** `~/.ssh/id_ed25519.pub` de Phil dans
 `/etc/rezo-maintenance/backup-recipient.pub` (propriétaire root), puis lancer
