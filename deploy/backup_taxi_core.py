@@ -191,6 +191,34 @@ def main() -> None:
             "database_sha256": file_sha256(dump),
             "database_bytes": dump.stat().st_size,
         }
+        for field, container in [
+            ("database_image_id", args.container),
+            ("application_image_id", "rezo-taxi-core-taxi-web-1"),
+        ]:
+            image = run(
+                "image inventory",
+                ["docker", "inspect", "--format", "{{.Image}}", container],
+                stdout=subprocess.PIPE,
+                text=True,
+            ).stdout.strip()
+            if not re.fullmatch(r"sha256:[a-f0-9]{64}", image):
+                raise RuntimeError("Invalid source image identity")
+            manifest[field] = image
+        repo = Path(__file__).resolve().parents[1]
+        manifest["source_checkout_sha"] = run(
+            "source inventory",
+            [
+                "git",
+                "-c",
+                f"safe.directory={repo}",
+                "-C",
+                str(repo),
+                "rev-parse",
+                "HEAD",
+            ],
+            stdout=subprocess.PIPE,
+            text=True,
+        ).stdout.strip()
         (work / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
         bundle = work / "backup.tar"
         with tarfile.open(bundle, "w") as tar:

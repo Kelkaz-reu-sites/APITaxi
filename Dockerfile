@@ -1,7 +1,8 @@
 ##### DEV API IMAGE #####
 
-# Timescale is required for tests, it's based on Ubuntu 22.04
-FROM timescale/timescaledb-ha:pg14-ts2.9-latest AS base-devenv
+# The integration environment uses the maintained PostgreSQL target and Python
+# 3.12 from Ubuntu 24.04, matching the production application runtime.
+FROM timescale/timescaledb-ha:pg17.11-ts2.31.0-all@sha256:26e355e055c97d0a51afc415b71fa728dd85664fb24165d595cc8cd0c485b2fc AS base-devenv
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DEBCONF_NONINTERACTIVE_SEEN=true

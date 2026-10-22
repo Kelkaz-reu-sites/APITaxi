@@ -10,7 +10,7 @@ authors = [
 ]
 readme = "README.md"
 description = "REST API of le.taxi"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 keywords = ["taxi transportation"]
 classifiers = [
     "Programming Language :: Python :: 3",
