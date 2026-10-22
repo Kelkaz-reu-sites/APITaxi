@@ -167,8 +167,9 @@ urllib3 2.7.0) et `linux-libc-dev`, sans ignorer d'avis de sécurité.
 
 **Décision de Phil du 22 octobre 2026 : les sauvegardes sont copiées sur son
 ordinateur ; R2 est abandonné comme destination de sauvegarde.** Aucune reprise
-d'envoi R2 ni nouvelle sonde réseau n'est prévue. La copie automatique vers
-l'ordinateur n'est pas encore configurée par ce lot.
+d'envoi R2 ni nouvelle sonde réseau n'est prévue. L'outil de copie quotidienne
+vers l'ordinateur et son timer utilisateur sont activés et vérifiés, comme
+indiqué ci-dessous.
 
 `deploy/backup_taxi_core.py` produit un dump complet, y compris les hypertables,
 les rôles sans leurs mots de passe et un manifeste de versions/empreintes. Il
@@ -235,6 +236,56 @@ lanceur doit exécuter `sudo -n /usr/local/sbin/rezo-taxi-core-backup`, sans
 argument. Installer le wrapper versionné à cet emplacement, root/root `0755`,
 dans un répertoire non modifiable par debian. Conserver son entrée et son
 ancien chemin de log ; ne pas créer un second job root concurrent.
+
+### Copie quotidienne sur le PC opérateur
+
+`scripts/maintenance/pull_backups_to_operator.py` rapatrie seulement les
+archives Taxi chiffrées et leurs preuves depuis
+`/var/backups/rezo-taxi-core/full` vers
+`/home/phil/geo/.maintenance-backups/taxi`. Il utilise une seule connexion SSH
+`debian`, avec hôte vérifié, clé explicite et `sudo -n` en lecture seule. Il ne
+lit aucun fichier d'environnement, ne déchiffre rien et ne contacte aucune API
+de stockage. Chaque nouvelle archive est vérifiée par taille, en-tête age et
+SHA-256 avant publication atomique en `0600`. Les fichiers locaux existants
+ne sont pas écrasés et aucune rétention destructive n'est appliquée sur le PC.
+Le transfert est limité à 64 archives, 512 MiB chacune et 2 GiB par exécution.
+
+Première copie réelle : **22 octobre 2026, 17:15:55 à 17:16:00 UTC**, une
+archive nouvelle de 2 980 772 octets, deux archives de la source vérifiées ;
+les copies manuelles précédentes ont été conservées. La plus récente est celle
+de 16:15 UTC. `pull-latest.json` et `pull-last-success.json` enregistrent cette
+réussite ; `pull-last-failure.json` conserve séparément le dernier échec, même
+après un succès ultérieur. Une archive de plus de 36 h rend le contrôle rouge.
+La preuve du VPS conserve `offsite_verified=false` : la vérification de la copie
+PC est portée par les fichiers `pull-*`, sans inventer une copie R2.
+
+Les modèles `taxi-backup-pull.service` et `taxi-backup-pull.timer` prévoient une
+copie quotidienne à **04:15 UTC**, après le backup VPS de 03:30 UTC, avec
+0 à 20 minutes de décalage et `Persistent=true`. **Statut du 22 octobre 2026 :
+timer utilisateur activé ; service réel exécuté de 17:17:55 à 17:17:58 UTC,
+résultat success/code 0, deux archives vérifiées, aucune nouvelle copie requise,
+fraîcheur conforme.** Cette deuxième exécution confirme la réutilisation des
+archives déjà vérifiées, sans écrasement. Prochaine échéance observée :
+23 octobre à 04:23:18 UTC. Le PC et son
+gestionnaire systemd utilisateur doivent fonctionner ; les échéances manquées
+sont rattrapées lorsque ce gestionnaire redémarre. Aucune tâche Windows n'est
+créée.
+
+Installation sur le poste, effectuée et vérifiée le 22 octobre :
+
+```bash
+install -m 0644 scripts/maintenance/taxi-backup-pull.service \
+  scripts/maintenance/taxi-backup-pull.timer /home/phil/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now taxi-backup-pull.timer
+systemctl --user start taxi-backup-pull.service
+systemctl --user status taxi-backup-pull.service taxi-backup-pull.timer
+```
+
+Cet automatisme couvre uniquement Taxi. Les copies Kelkaz existantes dans
+`/home/phil/Backups/restic-kelkaz-r2` datent du 8 septembre 2026 ; leur
+rafraîchissement quotidien n'est pas configuré par ce script. Le timer
+`operator_audit` contrôle les dépendances et ne copie aucune sauvegarde.
 
 La livraison des scripts de backup seuls ne reconstruit ni ne redémarre les
 conteneurs. Les premières images applicatives du 22 octobre ont été construites

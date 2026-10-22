@@ -1,0 +1,14 @@
+[Unit]
+Description=Copy encrypted Taxi backups from the VPS to Phil's computer
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -B /home/phil/geo/rezo-taxi-core/scripts/maintenance/pull_backups_to_operator.py
+WorkingDirectory=/home/phil/geo/rezo-taxi-core
+UMask=0077
+TimeoutStartSec=12min
+Nice=10
+NoNewPrivileges=true
+Environment=PYTHONDONTWRITEBYTECODE=1
+# Taxi only. Kelkaz's September PC snapshots have no daily transfer configured.

@@ -1,0 +1,13 @@
+[Unit]
+Description=Daily Taxi backup copy to the PC, catching up after startup
+
+[Timer]
+# The VPS creates its encrypted full backup at 03:30 UTC.
+OnCalendar=*-*-* 04:15:00 UTC
+Persistent=true
+RandomizedDelaySec=20min
+AccuracySec=1min
+Unit=taxi-backup-pull.service
+
+[Install]
+WantedBy=timers.target
