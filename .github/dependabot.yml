@@ -13,7 +13,9 @@ updates:
       taxi-minor-patch:
         update-types: [minor, patch]
   - package-ecosystem: docker
-    directory: /
+    directories:
+      - /
+      - /deploy/maintenance
     target-branch: rezo/internal-service-base
     schedule:
       interval: weekly

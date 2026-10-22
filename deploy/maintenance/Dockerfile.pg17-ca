@@ -1,0 +1,68 @@
+# Rebuild the SAME Go tool sources with patched toolchain/dependencies.
+# All source commits are from the original binaries' embedded VCS metadata.
+ARG GO_TOOLS_SOURCE=go-tools
+FROM golang:1.27.3-bookworm@sha256:972b4110ba0f47539a975c31e52c64765e1ff19f2d74469ae4a595c6676e80a5 AS go-tools
+ENV CGO_ENABLED=0 GOARCH=amd64 GOOS=linux GOTOOLCHAIN=local \
+    GOMAXPROCS=2 GOMEMLIMIT=1500MiB GOFLAGS="-mod=mod -p=2"
+RUN apt-get update && apt-get install -y --no-install-recommends --only-upgrade ca-certificates \
+    && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+ADD --checksum=sha256:d8e48b736dc9a86940723d1ec8332849704b4540a63a65db7aff0ee40fedf8a3 https://codeload.github.com/woblerr/pgbackrest_exporter/tar.gz/ad666e8c2a4d72dc84b7186774b52c058b668565 /tmp/pgbackrest.tar.gz
+ADD --checksum=sha256:d1819d334fd8e572468f8a3a3e35744223d09fccb1004dbd967647f03e84a58b https://codeload.github.com/prometheus-community/pgbouncer_exporter/tar.gz/5716a88b8dc8ce887878b2bda832ff46d79f67d2 /tmp/pgbouncer.tar.gz
+ADD --checksum=sha256:1490e343a67aea595fee4870167c0897178a0f9359f98a6f1b07a9fe803a4fc4 https://codeload.github.com/mikefarah/yq/tar.gz/504fc38780cc46be8444ea1b72fb55919fc0bfb0 /tmp/yq.tar.gz
+RUN mkdir -p /src/pgbackrest /src/pgbouncer /src/yq /out \
+    && tar -xzf /tmp/pgbackrest.tar.gz --strip-components=1 -C /src/pgbackrest \
+    && tar -xzf /tmp/pgbouncer.tar.gz --strip-components=1 -C /src/pgbouncer \
+    && tar -xzf /tmp/yq.tar.gz --strip-components=1 -C /src/yq
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    set -eu; for source in pgbackrest pgbouncer yq; do \
+      cd /src/$source; \
+      go mod edit -go=1.27.0; \
+      go get golang.org/x/crypto@v0.57.0 golang.org/x/net@v0.60.0 \
+             golang.org/x/oauth2@v0.27.0 golang.org/x/text@v0.42.0; \
+      go mod tidy; \
+      go mod download; \
+    done
+RUN --network=none --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    cd /src/pgbackrest && TZ=UTC go test -timeout=180s ./... \
+    && go build -trimpath -ldflags='-s -w -X main.version=ad666e8-rezo-security' -o /out/pgbackrest_exporter . \
+    && cd /src/pgbouncer && go test -timeout=180s ./... \
+    && go build -trimpath -ldflags='-s -w -X github.com/prometheus/common/version.Version=0.9.0 -X github.com/prometheus/common/version.Revision=5716a88b8dc8ce887878b2bda832ff46d79f67d2 -X github.com/prometheus/common/version.Branch=rezo-security' -o /out/pgbouncer_exporter . \
+    && cd /src/yq && go test -timeout=300s ./... \
+    && go build -trimpath -ldflags='-s -w' -o /out/yq . \
+    && /out/pgbackrest_exporter --help >/dev/null 2>&1 \
+    && /out/pgbouncer_exporter --version \
+    && /out/yq --version \
+    && test "$(printf 'value: 42\n' | /out/yq '.value' -)" = 42 \
+    && go version -m /out/pgbackrest_exporter /out/pgbouncer_exporter /out/yq
+
+# This small image can be transferred over SSH by measured archive SHA instead
+# of retransmitting the multi-GB upstream base already cached on the VPS.
+FROM scratch AS go-tools-artifacts
+COPY --from=go-tools /out /out
+FROM ${GO_TOOLS_SOURCE} AS selected-go-tools
+
+# Keep every PostgreSQL/Timescale/PostGIS engine byte identical to this base.
+FROM timescale/timescaledb-ha@sha256:26e355e055c97d0a51afc415b71fa728dd85664fb24165d595cc8cd0c485b2fc
+USER root
+COPY deploy/check_ca_trust.py /opt/rezo-ca/check_ca_trust.py
+COPY --from=selected-go-tools --chmod=0755 /out/pgbackrest_exporter /usr/bin/pgbackrest_exporter
+COPY --from=selected-go-tools --chmod=0755 /out/pgbouncer_exporter /usr/local/bin/pgbouncer_exporter
+COPY --from=selected-go-tools --chmod=0755 /out/yq /usr/local/bin/yq
+RUN dpkg-query -W -f='${binary:Package}=${Version}\n' > /tmp/packages-before-ca.txt \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends --only-upgrade ca-certificates \
+ && update-ca-certificates \
+ && dpkg-query -W -f='${binary:Package}=${Version}\n' > /tmp/packages-after-ca.txt \
+ && python3 -c "from pathlib import Path; parse=lambda p:dict(line.split('=',1) for line in Path(p).read_text().splitlines()); a=parse('/tmp/packages-before-ca.txt'); b=parse('/tmp/packages-after-ca.txt'); changed={n for n in a.keys()|b.keys() if a.get(n)!=b.get(n)}; assert changed <= {'ca-certificates'}, 'Non-CA packages changed'" \
+ && python3 -B /opt/rezo-ca/check_ca_trust.py \
+ && printf '%s\n' \
+    '08243b402581cded406b3b619921021537a81e74fc99c80a499c468a2e3144c3  /usr/lib/postgresql/17/bin/postgres' \
+    '35c96370b9e4854ff5f64dcd37fe0fbcad8f3f876bc76df32dacfebf744705af  /usr/lib/postgresql/17/lib/timescaledb-2.31.0.so' \
+    'f91bf098ab06f8e3016fc42acb0ab2e680241d223ec2b6b93b92188f0852a27f  /usr/lib/postgresql/17/lib/postgis-3.so' | sha256sum -c - \
+ && rm -rf /var/lib/apt/lists/* /tmp/packages-before-ca.txt /tmp/packages-after-ca.txt
+USER postgres
+LABEL rezo.maintenance.scope="ca-and-go-tools-no-engine-upgrade" \
+      rezo.maintenance.go="1.27.3" \
+      rezo.maintenance.base="sha256:26e355e055c97d0a51afc415b71fa728dd85664fb24165d595cc8cd0c485b2fc"

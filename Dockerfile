@@ -1,6 +1,10 @@
 ##### DEV API IMAGE #####
 
-FROM ghcr.io/astral-sh/uv:0.12.10@sha256:2bb3ebca0a796a155094a27773d290c4b074572e6107f171d88d086682fd2500 AS uv-tools
+# Official release archive, hash verified before any uv network operation.
+FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac AS uv-tools
+ADD --checksum=sha256:2b428396f12572d4429cf210ca234dd599a33b3af0958a4d5ed569d63e3f344f https://github.com/astral-sh/uv/releases/download/0.13.4/uv-x86_64-unknown-linux-gnu.tar.gz /tmp/uv.tar.gz
+RUN tar -xzf /tmp/uv.tar.gz --strip-components=1 -C /usr/local/bin \
+ && rm /tmp/uv.tar.gz && uv --version
 
 # This Timescale image uses Ubuntu 22.04. Install Python 3.12 explicitly below;
 # its distribution Python 3.10 has reached end of support.
@@ -10,7 +14,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV DEBCONF_NONINTERACTIVE_SEEN=true
 
 USER root
-RUN apt-get update && apt-get upgrade -y
+RUN apt-get update && apt-get upgrade -y \
+ && apt-get install -y --no-install-recommends ca-certificates \
+ && update-ca-certificates
 RUN apt-get install -y gpgv
 RUN apt-get install -y \
   git \
@@ -25,11 +31,20 @@ RUN apt-get install -y \
   sudo \
   vim
 
-COPY --from=uv-tools /uv /usr/local/bin/uv
+COPY --from=uv-tools /usr/local/bin/uv /usr/local/bin/uv
 ENV UV_PYTHON_INSTALL_DIR=/opt/python
 ENV UV_PYTHON_BIN_DIR=/usr/local/bin
+COPY deploy/check_ca_trust.py deploy/refresh_ensurepip.py /opt/rezo-ca/
+ADD --checksum=sha256:fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70 https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl /tmp/pip-26.2.2-py3-none-any.whl
 RUN uv python install --default 3.12 \
- && python3 -c "import sys, tomllib; assert sys.version_info[:2] == (3, 12)"
+ && python3 -c "import sys, tomllib; assert sys.version_info[:2] == (3, 12)" \
+ && python3 -m pip install --break-system-packages --no-index --no-deps /tmp/pip-26.2.2-py3-none-any.whl \
+ && python3 -B /opt/rezo-ca/refresh_ensurepip.py /tmp/pip-26.2.2-py3-none-any.whl \
+ && rm /tmp/pip-26.2.2-py3-none-any.whl \
+ && python3 -B /opt/rezo-ca/check_ca_trust.py
+# tox/virtualenv must not seed their independently cached older pip wheels.
+ENV VIRTUALENV_PIP=26.2.2
+
 
 
 ##### DEV TEST IMAGE #####
@@ -107,14 +122,19 @@ FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f57
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
+  ca-certificates \
   libpq-dev \
   python3-pip \
   python3-venv \
   libgeos-dev \
+ && update-ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
+ADD --checksum=sha256:fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70 https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl /tmp/pip-26.2.2-py3-none-any.whl
 RUN python3 -m venv /venv \
- && /venv/bin/pip install --no-cache-dir 'pip==26.2.2' 'setuptools==80.10.2'
+ && /venv/bin/pip install --no-index --no-deps /tmp/pip-26.2.2-py3-none-any.whl \
+ && rm /tmp/pip-26.2.2-py3-none-any.whl \
+ && /venv/bin/pip install --no-cache-dir 'setuptools==80.10.2'
 COPY requirements.txt requirements.lock /build/
 RUN /venv/bin/pip install --no-cache-dir --require-hashes -r /build/requirements.lock \
  && /venv/bin/pip check \
@@ -136,6 +156,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   libpq5 \
   python3 \
   libgeos-c1t64 \
+ && update-ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=runtime-dependencies /venv /venv
@@ -158,6 +179,7 @@ WORKDIR /app
 # Application source code
 COPY . /app
 RUN chown -R api:api /app /home/api \
+ && /venv/bin/python -B deploy/check_ca_trust.py \
  && /venv/bin/python -B deploy/check_runtime.py
 
 USER api

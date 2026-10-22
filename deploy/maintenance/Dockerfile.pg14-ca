@@ -1,0 +1,18 @@
+# CA-only derivative of the EXACT currently deployed PostgreSQL14/Timescale2.9.
+# This is not the prepared PG17 migration; no engine/extension/volume changes.
+FROM timescale/timescaledb-ha@sha256:c6879ffd8d6167c82b2aa8df1d3941f586ce37ad485935cb6a46b68dd46b6b53
+USER root
+COPY deploy/check_ca_trust.py /opt/rezo-ca/check_ca_trust.py
+RUN dpkg-query -W -f='${binary:Package}=${Version}\n' > /tmp/packages-before-ca.txt \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends --only-upgrade ca-certificates \
+ && update-ca-certificates \
+ && dpkg-query -W -f='${binary:Package}=${Version}\n' > /tmp/packages-after-ca.txt \
+ && python3 -c "from pathlib import Path; parse=lambda p:dict(line.split('=',1) for line in Path(p).read_text().splitlines()); a=parse('/tmp/packages-before-ca.txt'); b=parse('/tmp/packages-after-ca.txt'); changed={n for n in a.keys()|b.keys() if a.get(n)!=b.get(n)}; assert changed <= {'ca-certificates'}, 'Non-CA packages changed'" \
+ && test -f /usr/lib/python3/dist-packages/certifi/cacert.pem \
+ && ln -sf /etc/ssl/certs/ca-certificates.crt /usr/lib/python3/dist-packages/certifi/cacert.pem \
+ && python3 -B /opt/rezo-ca/check_ca_trust.py \
+ && rm -rf /var/lib/apt/lists/* /tmp/packages-before-ca.txt /tmp/packages-after-ca.txt
+USER postgres
+LABEL rezo.maintenance.scope="ca-only-no-engine-upgrade" \
+      rezo.maintenance.base="sha256:c6879ffd8d6167c82b2aa8df1d3941f586ce37ad485935cb6a46b68dd46b6b53"

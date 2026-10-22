@@ -39,19 +39,73 @@ Pont : timescale/timescaledb-ha:pg14-ts2.19-all@sha256:127e0220562ee2e5b1abe001d
 Cible : timescale/timescaledb-ha:pg17.11-ts2.31.0-all@sha256:26e355e055c97d0a51afc415b71fa728dd85664fb24165d595cc8cd0c485b2fc
 ```
 
+La cible des **nouveaux essais et de la proposition de bascule** est la variante
+CA et outils Go reconstruite sur le VPS depuis cette même base :
+`sha256:f180ded02bf7e10135f62ae8e6ab8b59425d406dbe1eacaa33a1439046e39c0a`
+(`deploy/maintenance/Dockerfile.pg17-ca`). Le paquet CA et les trois binaires Go
+ont changé ; les hashes des moteurs postgres/Timescale/PostGIS restent identiques.
+Les bundles OS/pip/certifi passent le contrôle sans les racines retirées. Le pin
+est l'ID immuable **mesuré sur le VPS Docker29**, sans tag local mutable ni
+publication dans un registry.
+
+La première variante CA-only `312856...` comportait encore 103 HIGH et deux
+CRITICAL dans `pgbackrest_exporter`, `pgbouncer_exporter` et `yq`. Leurs sources
+exactes ont été conservées, reconstruites avec Go1.27.3 et les modules corrigés
+`x/crypto v0.57.0`, `x/net v0.60.0`, `x/text v0.42.0`, `x/oauth2 v0.27.0`. Les tests amont
+s'exécutent sans réseau lors du build. Le smoke isolé valide les métriques
+pgBackRest sur loopback, la CLI PgBouncer et une requête YAML/JSON avec yq.
+La connexion réelle de l'exporter à un pooler PgBouncer n'est pas testée : aucun
+pooler n'est configuré dans ce Compose.
+
+Le scan **de l'ID exact sur le VPS**, terminé le 22 octobre à 20:17:14 UTC avec
+Trivy0.76.1, retourne **0 HIGH et 0 CRITICAL**, sans ignore et avec les avis sans
+correctif inclus. Il couvre Ubuntu, Python et les trois binaires Go.
+Rapport : `/var/lib/rezo-maintenance/scans/pg17-candidate-20261022.json`, SHA256
+`17821a0732cc8a414c3ed487f59495071b413c30c80061de670fe0e878f5967a`.
+Copie PC privée et smoke CA/fonctions sous
+`/home/phil/geo/.maintenance-backups/taxi/pg17-target-20261022/`.
+
+Aucun conteneur de production n'a été remplacé. La revue du scan, du smoke et de
+la répétition exacte a été donnée le 22 octobre ; `TARGET_SECURITY_REVIEWED=True`
+enregistre cette revue pour ce pin uniquement. La validation du SHA final, le
+backup frais vérifié sur PC et la décision de fenêtre restent obligatoires.
+Un ancien `PASS` ne suffit plus :
+`rehearsal.json` lie l'image source/cible, les scripts et les empreintes mesurées,
+et le contrôleur impose moins de 24 heures.
+
+Entretien de la recette : Dependabot suit aussi les bases Docker sous
+`/deploy/maintenance`. Le scan quotidien des images réellement en service
+contrôle les bibliothèques Go incorporées. Phil revoit au moins chaque mois les
+trois sources amont, leurs avis et les pins de dépendances du Dockerfile :
+
+- [pgbackrest_exporter](https://github.com/woblerr/pgbackrest_exporter), commit de départ `ad666e8c2a4d72dc84b7186774b52c058b668565` ;
+- [pgbouncer_exporter](https://github.com/prometheus-community/pgbouncer_exporter), version `0.9.0`, commit de départ `5716a88b8dc8ce887878b2bda832ff46d79f67d2` ;
+- [yq](https://github.com/mikefarah/yq), version `4.54.1`, commit `504fc38780cc46be8444ea1b72fb55919fc0bfb0`.
+
+La reconstruction garde ces sources pour préserver les fonctions et remplace
+leur toolchain/transitives vulnérables. Les hashes des archives et le digest du
+compilateur sont dans le Dockerfile. Les modules principaux reconstruits peuvent
+être marqués `(devel)` dans le buildinfo Go : leur revue amont reste nécessaire
+en complément de l'analyse des modules embarqués, qui couvre stdlib/transitives.
+Une mise à jour de source impose ses tests upstream, les smokes des CLI, un scan
+complet et une nouvelle restauration avant remplacement de la cible. Aucun
+nouveau workflow Actions n'est activé par ce lot.
+
 ## Preuve du 22 octobre
 
-Dernier essai réussi : `/var/backups/rezo-maintenance-test-20261022T140605Z` sur le
-VPS REZO. Les quatre états restaurés sont identiques octet par octet au fichier
+Dernier essai réussi : `/var/backups/rezo-maintenance-test-20261022T201813Z` sur le
+VPS REZO, avec l'image cible exacte `f180ded...`. Les quatre états restaurés sont
+identiques octet par octet au fichier
 d'empreintes source : **45 tables applicatives, dont 44 non vides, 68 indexes,
 77 contraintes, 3 hypertables, 26 chunks et 37 définitions de séquences**, plus
 contrôle du nombre d'objets volumineux. Aucun contenu de ligne ni hash de mot de
 passe/role n'est affiché. Les empreintes de lignes sont des agrégats par table.
 
 ```text
-Dump complet : 2967650 octets
-SHA256 dump : 6f4178bf04f8629650a4980719069d35eacc53ffbb0b309c9677cb8b46b32dd0
-SHA256 evidence : 4e42e97119597f7ff8c3754e93f7a5efebae9962d435416cff42f130bc98fa32
+Dump complet : 2970921 octets
+SHA256 dump : 36b886977bb64e7d85655de844f17189a7429c3ae5059b8e921afb52d30b31fb
+SHA256 evidence : 70c0f48db1235e04e444f1c31d76edfe38fdb3a6d6e21f1bdf0380621ddbe5fa
+SHA256 rehearsal.json : 7528a6e23d111d2941e89846992867ad7d98257f55f8752b7522fed771fe327c
 ```
 
 Les tables internes d'extension ne sont pas comparées entre versions, puisqu'une
@@ -63,19 +117,70 @@ un dump avec écritures actives. La bascule finale gèle donc d'abord les writer
 Tous les conteneurs d'essai ont été supprimés. Répertoires conservés en `0700`,
 dumps/logs en `0600`, uniquement sur le serveur. Le premier essai à 14:02 UTC
 avait rencontré le redémarrage normal du serveur temporaire d'initdb du clone ;
-la production n'avait pas redémarré. Deux essais complets corrigés ont réussi.
+la production n'avait pas redémarré. Les essais initiaux puis la répétition de
+20:18 UTC sur la cible CA/Go ont réussi. Le conteneur source et son démarrage
+sont restés inchangés pendant cette dernière répétition.
 
 ## Préparation obligatoire avant la bascule
 
-- Livrer le code et obtenir la CI complète verte pour le SHA exact sur `rezo/internal-service-base`.
+- Livrer le code et obtenir la CI complète verte pour le SHA exact sur `rezo/internal-service-base`, ou la validation locale mesurée ci-dessous si GitHub Actions n'a plus de crédits. Une CI absente/rouge ne devient jamais une CI réussie.
 - Préparer un commit séparé du Compose de production : image cible figée et nouveau volume logique `taxi-postgres-17-data`, nom effectif `rezo-taxi-core_taxi-postgres-17-data`. Le volume doit encore être absent. Conserver la déclaration de l'ancien volume pour le rollback.
 - Ne pas exécuter `docker compose up` avec ce nouveau Compose avant l'outil de migration : une base vide ne doit pas démarrer à la place de l'ancienne.
-- Créer un backup chiffré avec `deploy/backup_taxi_core.py`, copier l'archive et sa preuve sur l'ordinateur de Phil, puis vérifier la copie par relecture SHA-256. Phil a écarté R2 comme destination de sauvegarde. Avant bascule, obtenir une preuve de copie hors VPS actualisée, revue et compatible avec la garde `--offsite-proof` : moins d'une heure, digest et inventaire courants (`database_image_id`, `application_image_id`, `source_checkout_sha`). Le JSON d'une sauvegarde seulement locale conserve `offsite_verified=false` ; ne pas déclarer la copie vérifiée sans sa relecture effective. Ne pas stocker la clé privée de déchiffrement sur le VPS.
+- Créer un backup chiffré avec `deploy/backup_taxi_core.py --local-only`, copier l'archive et sa preuve sur l'ordinateur de Phil, puis vérifier la copie par relecture SHA-256 et déchiffrement age. Phil a écarté R2 comme destination de sauvegarde. Avant bascule, obtenir un reçu PC mesuré `--operator-receipt` de moins d'une heure, avec digest et inventaire courants (`database_image_id`, `application_image_id`, `source_checkout_sha`). Le JSON du backup serveur garde **`offsite_verified=false`** : aucune édition de ce booléen ne remplace le reçu séparé. Ne pas stocker la clé privée de déchiffrement sur le VPS.
 - Garder les credentials applicatifs dans leur configuration protégée ; `roles.sql --no-role-passwords` ne sauvegarde pas les mots de passe. Prévoir leur restauration séparée pour une reprise après perte du serveur.
 - Suspendre toute livraison concurrente pendant la fenêtre de bascule. L'outil emploie son propre verrou, que les déploiements existants ne prennent pas nécessairement.
 - Utiliser `/opt/rezo-taxi-core/.env`, comme le Compose réellement en service. Le contrôle du 22 octobre a confirmé qu'il correspond aux variables live ; l'ancien `/etc/rezo-taxi-core/production.env` diffère sur le handoff et Sentry. L'outil vérifie la concordance des variables applicatives avant d'arrêter un service, sans afficher leurs valeurs.
 
 ## Commande unique proposée pour revue
+
+### Validation locale si les crédits GitHub sont épuisés
+
+L'outil `operator_migration_proof.py validate` s'exécute exclusivement depuis le
+checkout PC `/home/phil/geo/rezo-taxi-core`, propre au SHA exact. Il exécute
+réellement l'audit verrouillé, les tests de backup/migration et de l'application,
+les trois builds et les contrôles des bibliothèques natives, du runtime et des CA.
+Le Compose de test utilise un nom de projet isolé, `--no-deps` et aucun `.env`.
+Les sorties restent dans des logs privés `0600`, le dossier en `0700`.
+
+```bash
+python3 -B deploy/maintenance/operator_migration_proof.py validate \
+  --expected-prod-sha SHA_COMPLET_COMMIT_PRODUCTION \
+  --output-dir /home/phil/geo/.maintenance-backups/taxi/validation-SHA
+```
+
+Le reçu `manual-validation.json` conserve `github_status=not_used_no_credits`,
+les exits réels, les SHA-256 des logs, de l'outil et du workflow. Il est valable
+24 heures pour ce SHA seulement. Un échec garde `status=failed` et bloque la
+bascule. Après revue, copier ce dossier sur le VPS puis installer le reçu et
+**tous ses logs** en root `0600` sous un dossier `0700`, par exemple
+`/var/backups/rezo-taxi-core/manual-validation/SHA/`. Conserver le SHA-256 réel
+du reçu affiché par l'outil pour `--manual-validation-sha256` ; le contrôleur
+recalcule aussi chaque log. Cette préparation n'est pas une bascule.
+
+### Preuve PC d'une sauvegarde réelle
+
+Sur le PC, pour une archive précise créée par le wrapper serveur et un digest
+revu, exécuter :
+
+```bash
+python3 -B deploy/maintenance/operator_migration_proof.py copy-backup \
+  --archive apitaxi-full-HORODATAGE.tar.age \
+  --sha256 SHA256_CHIFFRE_VERIFIE \
+  --expected-prod-sha SHA_COMPLET_COMMIT_PRODUCTION \
+  --publish
+```
+
+Le helper fait un **vrai pull SSH**, relit les octets locaux, déchiffre avec
+`/home/phil/.local/bin/age -d -i /home/phil/.ssh/id_ed25519` (seul age lit la clé),
+puis valide en mémoire le TAR limité aux trois entrées, l'identité du manifeste,
+la signature `PGDMP`, la taille et le hash du dump. Aucun contenu de base ni clé
+n'est affiché et aucun clair n'est écrit sur disque. L'archive est limitée à
+512 Mio. `--publish` envoie seulement un reçu JSON vers le même VPS REZO : le
+lecteur privilégié recalcule le hash serveur, compare le checkout/les images et
+écrit un reçu root `0600` nommé `<archive>.operator-pc.json`. Aucune API de
+stockage n'est contactée. Sans `--publish`, le reçu reste uniquement sur le PC.
+
+### Précontrôle de la fenêtre
 
 Lancer d'abord **sans `--execute`** : seule la vérification des préconditions est
 faite. Remplacer les trois valeurs majuscules par les preuves de la livraison
@@ -87,19 +192,26 @@ sudo python3 /opt/rezo-taxi-core/deploy/maintenance/cutover_postgres.py \
   --ci-run IDENTIFIANT_RUN_CI_VERT \
   --offsite-proof /CHEMIN_PROTEGE/apitaxi-full-HORODATAGE.tar.age.json \
   --offsite-sha256 SHA256_CHIFFRE_VERIFIE \
-  --tested-directory /var/backups/rezo-maintenance-test-20261022T140605Z \
-  --test-evidence-sha256 4e42e97119597f7ff8c3754e93f7a5efebae9962d435416cff42f130bc98fa32
+  --operator-receipt /var/backups/rezo-taxi-core/full/apitaxi-full-HORODATAGE.tar.age.operator-pc.json \
+  --tested-directory /var/backups/rezo-maintenance-test-20261022T201813Z \
+  --test-evidence-sha256 70c0f48db1235e04e444f1c31d76edfe38fdb3a6d6e21f1bdf0380621ddbe5fa
 ```
 
 Cette proposition n'a pas été exécutée en production. Elle exige un checkout
-propre au SHA attendu, la CI de ce SHA/branche/workflow réussie, l'image source
+propre au SHA attendu, la CI de ce SHA/branche/workflow réussie ou le reçu local
+mesuré avec ses logs, l'image source
 exacte, la preuve de restauration complète et un backup hors site de moins d'une
 heure dont le chiffrement local correspond au SHA vérifié. Les commandes ne
 mettent jamais les mots de passe dans leurs arguments ni dans leur sortie.
 
+Pour utiliser la preuve locale, remplacer `--ci-run ...` par les deux options
+`--manual-validation-proof /var/backups/rezo-taxi-core/manual-validation/SHA/manual-validation.json`
+et `--manual-validation-sha256 SHA256_RECU_LOCAL_REVU`. Les deux modes sont
+mutuellement exclusifs ; la sortie précise la source de validation.
+
 Avec `--execute`, l'outil proposé :
 
-1. Arrête beat/worker/backend web, puis refait un backup chiffré hors site pendant le gel. Ce backup conserve encore les états normaux des jobs Timescale.
+1. Arrête beat/worker/backend web, puis refait un backup local chiffré pendant le gel. Il affiche `FROZEN_BACKUP_READY` avec son basename/digest et attend au maximum dix minutes un **nouveau** reçu PC associé à cette archive. Depuis le PC, relancer `copy-backup` avec les valeurs affichées et **`--frozen --publish`** ; le serveur vérifie réellement que les trois writers sont arrêtés avant d'accepter ce reçu. Absence de PC/réseau, échec age/SHA ou reçu ancien : arrêt de l'opération et reprise de l'ancienne production avant exposition. Ce backup conserve encore les états normaux des jobs Timescale.
 2. Sauvegarde leurs états, suspend la planification des jobs Timescale (compression, rétention et tâches système) et attend la fin des jobs actifs avant le dump final. Les restaurations d'essai ont montré que ces jobs existent ; arrêter seulement Celery ne les gèle pas.
 3. Rejoue le protocole complet sur un nouveau jeu de clones, sans toucher à l'ancien volume.
 4. Remplace l'authentification `trust` du clone par SCRAM, restitue au seul login `apitaxi` son mot de passe depuis l'environnement du conteneur source sans l'afficher, et prouve qu'un mauvais mot de passe TCP est refusé. Ce test d'authentification a aussi réussi sur le clone isolé le 22 octobre. Tous les jobs de la cible restent suspendus.

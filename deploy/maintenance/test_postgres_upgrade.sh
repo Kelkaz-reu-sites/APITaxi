@@ -9,10 +9,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_CONTAINER=rezo-taxi-core-taxi-postgres-1
 OLD_IMAGE=sha256:c6879ffd8d6167c82b2aa8df1d3941f586ce37ad485935cb6a46b68dd46b6b53
 PG14_IMAGE=timescale/timescaledb-ha:pg14-ts2.19-all@sha256:127e0220562ee2e5b1abe001deb87670465bc55fca75aeaeaaf861b55734af47
-PG17_IMAGE=timescale/timescaledb-ha:pg17.11-ts2.31.0-all@sha256:26e355e055c97d0a51afc415b71fa728dd85664fb24165d595cc8cd0c485b2fc
+PG17_IMAGE=sha256:f180ded02bf7e10135f62ae8e6ab8b59425d406dbe1eacaa33a1439046e39c0a
 RUN_DIR="${1:-/var/backups/rezo-maintenance-test-$(date -u +%Y%m%dT%H%M%SZ)}"
 [[ $RUN_DIR =~ ^/var/backups/rezo-maintenance-test-[A-Za-z0-9_-]+$ && ! -e $RUN_DIR ]] || { echo 'Use a new protected rezo-maintenance-test directory.' >&2; exit 2; }
 [[ $(docker inspect --format '{{.Image}}' "$SOURCE_CONTAINER") == "$OLD_IMAGE" ]] || { echo 'Production image changed: re-review the protocol.' >&2; exit 2; }
+[[ $(docker image inspect --format '{{.Id}}' "$PG17_IMAGE") == "$PG17_IMAGE" ]] || { echo 'Reviewed local PG17 CA/Go-fixed image is unavailable.' >&2; exit 2; }
 mkdir -m 0700 "$RUN_DIR"
 exec 9>"$RUN_DIR/operation.lock"
 flock -n 9 || exit 2
@@ -151,4 +152,38 @@ evidence "$CLONE17" "$RUN_DIR/pg17-final.evidence"
 cmp "$RUN_DIR/source.evidence" "$RUN_DIR/pg17-final.evidence"
 psql_clone "$CLONE17" -c "SELECT json_build_object('server', current_setting('server_version'), 'extensions', (SELECT json_agg(json_build_object('name',extname,'version',extversion)) FROM pg_extension));" \
   | tee "$RUN_DIR/final-versions.json"
+python3 - "$RUN_DIR" "$SCRIPT_DIR" "$OLD_IMAGE" "$PG17_IMAGE" <<'PY'
+import datetime as dt
+import hashlib
+import json
+import os
+import sys
+from pathlib import Path
+
+run, scripts = map(Path, sys.argv[1:3])
+def digest(path):
+    result = hashlib.sha256()
+    with path.open('rb') as source:
+        for block in iter(lambda: source.read(1024 * 1024), b''):
+            result.update(block)
+    return result.hexdigest()
+
+proof = {
+    'schema_version': 1,
+    'status': 'passed',
+    'completed_at': dt.datetime.now(dt.timezone.utc).isoformat(),
+    'source_image': sys.argv[3],
+    'target_image': sys.argv[4],
+    'evidence_sha256': digest(run / 'source.evidence'),
+    'source_dump_sha256': digest(run / 'source.dump'),
+    'test_script_sha256': digest(scripts / 'test_postgres_upgrade.sh'),
+    'evidence_sql_sha256': digest(scripts / 'database_evidence.sql'),
+    'production_changed': False,
+}
+path = run / 'rehearsal.json'
+with path.open('x') as output:
+    os.chmod(path, 0o600)
+    json.dump(proof, output, indent=2, sort_keys=True)
+    output.write('\n')
+PY
 printf 'PASS: all clone stages preserve the complete evidence. No production change.\n' | tee "$RUN_DIR/PASS"
