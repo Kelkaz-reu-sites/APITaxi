@@ -1,0 +1,97 @@
+{
+  "owner": "Phil",
+  "review_due": "2026-11-22",
+  "warning_days_before_eol": 90,
+  "repositories": {
+    "Kelkaz-reu-sites/kelkaz": {
+      "branch": "main",
+      "audit_workflow": "security.yml",
+      "additional_workflows": [
+        "image-audit.yml",
+        "dependency-graph.yml"
+      ],
+      "audit_max_age_hours": 36,
+      "dependabot_max_age_hours": 240,
+      "pull_request_warning_days": 14,
+      "pull_request_max_days": 30,
+      "uv_locks": [
+        "api/uv.lock"
+      ]
+    },
+    "Kelkaz-reu-sites/rezo": {
+      "branch": "main",
+      "audit_workflow": "checks.yml",
+      "audit_max_age_hours": 36,
+      "dependabot_max_age_hours": 240,
+      "pull_request_warning_days": 14,
+      "pull_request_max_days": 30,
+      "uv_locks": []
+    },
+    "Kelkaz-reu-sites/kelkaz-scraper": {
+      "branch": "main",
+      "audit_workflow": "security.yml",
+      "audit_max_age_hours": 36,
+      "dependabot_max_age_hours": 240,
+      "pull_request_warning_days": 14,
+      "pull_request_max_days": 30,
+      "uv_locks": []
+    },
+    "Kelkaz-reu-sites/APITaxi": {
+      "branch": "rezo/internal-service-base",
+      "audit_workflow": "rezo-taxi-core-ci.yml",
+      "audit_max_age_hours": 36,
+      "dependabot_max_age_hours": 240,
+      "pull_request_warning_days": 14,
+      "pull_request_max_days": 30,
+      "uv_locks": []
+    }
+  },
+  "runtimes": [
+    {
+      "name": "Node.js 22 (web Kelkaz/REZO et poste)",
+      "eol": "2027-04-30",
+      "source": "https://github.com/nodejs/Release/blob/main/schedule.json"
+    },
+    {
+      "name": "Python 3.11 (API Kelkaz)",
+      "eol": "2027-10",
+      "source": "https://peps.python.org/pep-0664/"
+    },
+    {
+      "name": "Python 3.12 (scraper, ETL et geocoder REZO)",
+      "eol": "2028-10",
+      "source": "https://devguide.python.org/versions/"
+    },
+    {
+      "name": "PostgreSQL 14 (APITaxi/TimescaleDB)",
+      "eol": "2026-11-12",
+      "source": "https://www.postgresql.org/support/versioning/"
+    }
+  ],
+  "reviews": [
+    {
+      "name": "Outils manuels et images reconstruites : Trivy, uv, gitleaks, Go, plugins Grafana et modules Go embarqués",
+      "owner": "Phil",
+      "due": "2026-11-05",
+      "reason": "Dependabot ne suit pas les versions téléchargées dans les scripts ni toutes les versions Go réécrites pendant les builds."
+    },
+    {
+      "name": "Audit npm complet Kelkaz informatif (décision du 4 octobre 2026)",
+      "owner": "Phil",
+      "due": "2026-11-05",
+      "reason": "Réexaminer les alertes de développement et leurs correctifs ; ne supprime ni ne masque aucun avis."
+    },
+    {
+      "name": "Services hébergés : Supabase/PostgreSQL, Cloudflare R2/DNS et API Stripe",
+      "owner": "Phil",
+      "due": "2026-11-05",
+      "reason": "Vérifier avis des fournisseurs, version PostgreSQL effective, sauvegardes et versions API ; une mise à jour npm ne couvre pas ces services."
+    },
+    {
+      "name": "Migrer PostgreSQL 14 APITaxi avant sa fin de support",
+      "owner": "Phil",
+      "due": "2026-11-05",
+      "reason": "Préparer sauvegarde, restauration testée et compatibilité TimescaleDB ; aucune migration majeure automatique."
+    }
+  ]
+}

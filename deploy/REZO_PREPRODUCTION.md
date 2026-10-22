@@ -147,6 +147,27 @@ docker build --target beat -t rezo-taxi-core-beat:test .
 
 ## 6. Database backup before deploy
 
+Maintenance du 22 octobre 2026 : `deploy/backup_taxi_core.py` produit un dump
+complet, y compris les hypertables, les rôles sans leurs mots de passe et un
+manifeste de versions/empreintes. Il chiffre l'ensemble avec `age` pour la clé
+publique SSH de Phil, puis vérifie par relecture la copie dans le bucket R2
+privé déjà utilisé par REZO. La clé privée reste sur le poste de Phil.
+L'absence de configuration privée, un échec d'envoi ou une différence
+d'empreinte font échouer la sauvegarde ; aucune destination publique de secours.
+La rétention locale des nouvelles archives est de 14 jours. Les copies R2 sont
+conservées ; aucune suppression distante n'est automatisée.
+
+Le lanceur quotidien doit appeler cet outil via le wrapper de notification REZO.
+Après installation, contrôler la preuve `OFFSITE_VERIFIED=true` et tester aussi
+le déchiffrement avec la clé privée du poste. Une archive lisible ne remplace pas
+la recette de restauration isolée avant migration PostgreSQL/TimescaleDB.
+
+Les dépendances applicatives sont désormais installées depuis
+`requirements.lock` avec vérification de leurs empreintes ; la CI Python 3.12
+les audite chaque jour et avant livraison. Pour réactualiser le verrouillage,
+utiliser `uv pip compile requirements.txt --python-version 3.12 --generate-hashes
+--output-file requirements.lock`, puis relancer l'audit et les tests.
+
 Create a PostgreSQL logical backup before migrations:
 
 ```bash

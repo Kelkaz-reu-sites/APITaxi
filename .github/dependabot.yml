@@ -1,0 +1,31 @@
+# Branche par défaut alignée sur la production le 2026-10-22 :
+# rezo/internal-service-base. Les alertes GitHub concernent cette branche ;
+# target-branch rend également la destination des version updates explicite.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    target-branch: rezo/internal-service-base
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      taxi-minor-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: docker
+    directory: /
+    target-branch: rezo/internal-service-base
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker-compose
+    directory: /
+    target-branch: rezo/internal-service-base
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: rezo-taxi-core-*
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: rezo/internal-service-base
+    schedule:
+      interval: weekly

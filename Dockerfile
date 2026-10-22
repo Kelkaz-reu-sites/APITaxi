@@ -123,10 +123,10 @@ RUN chown api:api /var/run/api-taxi
 
 # COPY requirements first before running `pip3 install .` to use Docker cache if
 # dependencies did not change.
-COPY requirements.txt /app/
+COPY requirements.txt requirements.lock /app/
 WORKDIR /app
 
-RUN /venv/bin/pip3 install -r requirements.txt
+RUN /venv/bin/pip3 install --require-hashes -r requirements.lock
 
 # Application source code
 COPY . /app
