@@ -52,10 +52,10 @@ COPY --from=selected-go-tools --chmod=0755 /out/pgbouncer_exporter /usr/local/bi
 COPY --from=selected-go-tools --chmod=0755 /out/yq /usr/local/bin/yq
 RUN dpkg-query -W -f='${binary:Package}=${Version}\n' > /tmp/packages-before-ca.txt \
  && apt-get update \
- && apt-get install -y --no-install-recommends --only-upgrade ca-certificates \
+ && apt-get install -y --no-install-recommends --only-upgrade ca-certificates libbrotli1=1.0.9-2ubuntu0.1 \
  && update-ca-certificates \
  && dpkg-query -W -f='${binary:Package}=${Version}\n' > /tmp/packages-after-ca.txt \
- && python3 -c "from pathlib import Path; parse=lambda p:dict(line.split('=',1) for line in Path(p).read_text().splitlines()); a=parse('/tmp/packages-before-ca.txt'); b=parse('/tmp/packages-after-ca.txt'); changed={n for n in a.keys()|b.keys() if a.get(n)!=b.get(n)}; assert changed <= {'ca-certificates'}, 'Non-CA packages changed'" \
+ && python3 -c "from pathlib import Path; parse=lambda p:dict(line.split('=',1) for line in Path(p).read_text().splitlines()); a=parse('/tmp/packages-before-ca.txt'); b=parse('/tmp/packages-after-ca.txt'); changed={n.split(':')[0] for n in a.keys()|b.keys() if a.get(n)!=b.get(n)}; assert changed <= {'ca-certificates', 'libbrotli1'}, 'Unreviewed packages changed'" \
  && python3 -B /opt/rezo-ca/check_ca_trust.py \
  && printf '%s\n' \
     '08243b402581cded406b3b619921021537a81e74fc99c80a499c468a2e3144c3  /usr/lib/postgresql/17/bin/postgres' \
@@ -63,6 +63,6 @@ RUN dpkg-query -W -f='${binary:Package}=${Version}\n' > /tmp/packages-before-ca.
     'f91bf098ab06f8e3016fc42acb0ab2e680241d223ec2b6b93b92188f0852a27f  /usr/lib/postgresql/17/lib/postgis-3.so' | sha256sum -c - \
  && rm -rf /var/lib/apt/lists/* /tmp/packages-before-ca.txt /tmp/packages-after-ca.txt
 USER postgres
-LABEL rezo.maintenance.scope="ca-and-go-tools-no-engine-upgrade" \
+LABEL rezo.maintenance.scope="ca-go-tools-brotli-no-engine-upgrade" \
       rezo.maintenance.go="1.27.3" \
       rezo.maintenance.base="sha256:26e355e055c97d0a51afc415b71fa728dd85664fb24165d595cc8cd0c485b2fc"

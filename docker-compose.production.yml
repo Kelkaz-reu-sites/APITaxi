@@ -73,7 +73,7 @@ services:
   taxi-postgres:
     # Reviewed local immutable image. Apply only through the guarded migration;
     # a normal compose up would start the new empty volume before the restore.
-    image: sha256:f180ded02bf7e10135f62ae8e6ab8b59425d406dbe1eacaa33a1439046e39c0a
+    image: sha256:c71149e092dfa75876bbb7d9c5bc5ca8fd40c7d6b6ce24f7de63d0b279ff721c
     restart: unless-stopped
     environment:
       POSTGRES_DB: "${POSTGRES_DB:?Set POSTGRES_DB in the compose env file}"

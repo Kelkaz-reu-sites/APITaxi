@@ -1,5 +1,44 @@
 # PostgreSQL et TimescaleDB — migration réalisée et preuves
 
+## Correctif système du 4 novembre 2026 — préparation
+
+Le scan complet des conteneurs a détecté `CVE-2026-111497` sur
+`libbrotli1 1.0.9-2build6`. Le [correctif Ubuntu Jammy](https://ubuntu.com/security/CVE-2026-111497)
+est **1.0.9-2ubuntu0.1**. `Dockerfile.pg17-ca` n'autorise comme différences de
+paquets que CA et Brotli ; les hashes PostgreSQL 17.11, TimescaleDB 2.31.0 et
+PostGIS 3.6.4 sont vérifiés à la construction. Les trois outils Go précédemment
+revus restent utilisables via `GO_TOOLS_SOURCE=rezo-taxi-pg17-tools:20261022`.
+
+Le candidat construit sur le VPS est épinglé dans Compose :
+`sha256:c71149e092dfa75876bbb7d9c5bc5ca8fd40c7d6b6ce24f7de63d0b279ff721c`.
+Son scan intégral est sans HIGH/CRITICAL. La variante locale a démarré PG17 et
+les extensions ; le backup du 4 novembre à 16:17 UTC a été copié, vérifié par
+SHA-256, déchiffré et réellement restauré dans cette variante isolée sans réseau.
+Le dump restaure également pgcrypto 1.3 et uuid-ossp 1.1.
+
+`patch_pg17_os.py` exige la CI complète du SHA/branche exacts, le pin Compose
+comme seul changement de configuration, le volume PG17 existant, les mêmes
+octets de moteurs et un backup chiffré vérifié sur PC datant de moins d'une heure.
+Il prend le verrou commun, suspend les trois writers, compare les empreintes
+des tables applicatives avant/après le redémarrage, puis vérifie la vraie
+connexion SQL/Redis de l'application avant le reçu. En cas d'échec, retour à
+l'ancienne image **sur le même volume**, puis reprise des writers ; aucun dump
+n'est restauré en production. Ce chemin ne remplace pas la procédure de
+migration majeure ci-dessous.
+
+Activation opérateur REZO (compte `debian`, pas un accès Kelkaz) :
+
+```bash
+sudo -n python3 /chemin/verifie/patch_pg17_os.py \
+  --source-sha SHA_COMPLET_PUBLIE --ci-run RUN_CI_VERT \
+  --backup apitaxi-full-20261104T161731Z.tar.age \
+  --backup-sha256 85166c8a977e33da2a67fb400dc643e1d432f51cd94d26fa9139282446a93f51
+```
+
+Le reçu est `/var/backups/rezo-taxi-core/os-patch-20261104/receipt.json`.
+**Réception en production : en préparation.** Les preuves historiques suivantes
+décrivent le lot d'octobre, pas encore ce nouveau pin.
+
 **Production vérifiée le 22 octobre 2026 : PostgreSQL17.11, TimescaleDB2.31.0,
 Toolkit1.26.0 et PostGIS3.6.4.** La bascule a été autorisée puis committée à
 20:51:22 UTC. Les cinq services Taxi sont sains, sans redémarrage supplémentaire.
