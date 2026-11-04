@@ -1,6 +1,6 @@
 # PostgreSQL et TimescaleDB — migration réalisée et preuves
 
-## Correctif système du 4 novembre 2026 — préparation
+## Correctif système du 4 novembre 2026 — reçu
 
 Le scan complet des conteneurs a détecté `CVE-2026-111497` sur
 `libbrotli1 1.0.9-2build6`. Le [correctif Ubuntu Jammy](https://ubuntu.com/security/CVE-2026-111497)
@@ -36,8 +36,17 @@ sudo -n python3 /chemin/verifie/patch_pg17_os.py \
 ```
 
 Le reçu est `/var/backups/rezo-taxi-core/os-patch-20261104/receipt.json`.
-**Réception en production : en préparation.** Les preuves historiques suivantes
-décrivent le lot d'octobre, pas encore ce nouveau pin.
+**Réception réussie le 4 novembre à 16:48 UTC**, source `6345bb9`,
+[CI 41869405458](https://github.com/Kelkaz-reu-sites/APITaxi/actions/runs/41869405458).
+Le volume `rezo-taxi-core_taxi-postgres-17-data` et les empreintes applicatives
+avant/après sont identiques ; les trois images des writers sont conservées.
+La vraie connexion SQL/Redis a passé le contrôle après reprise. Le scan installé
+de tous les conteneurs REZO est complet à 16:53 UTC : **9 conteneurs, 9 images,
+zéro HIGH/CRITICAL**, y compris les avis sans correctif. La sauvegarde chiffrée
+reste sur le PC ; les fichiers temporaires déchiffrés et le conteneur de
+restauration ont été supprimés après validation.
+
+Les preuves historiques suivantes décrivent le lot d'octobre.
 
 **Production vérifiée le 22 octobre 2026 : PostgreSQL17.11, TimescaleDB2.31.0,
 Toolkit1.26.0 et PostGIS3.6.4.** La bascule a été autorisée puis committée à
@@ -106,7 +115,7 @@ Pont : timescale/timescaledb-ha:pg14-ts2.19-all@sha256:127e0220562ee2e5b1abe001d
 Cible : timescale/timescaledb-ha:pg17.11-ts2.31.0-all@sha256:26e355e055c97d0a51afc415b71fa728dd85664fb24165d595cc8cd0c485b2fc
 ```
 
-L'image **active** est la variante CA et outils Go reconstruite sur le VPS
+L'image **active à la réception d'octobre** était la variante CA et outils Go reconstruite sur le VPS
 depuis cette même base :
 `sha256:f180ded02bf7e10135f62ae8e6ab8b59425d406dbe1eacaa33a1439046e39c0a`
 (`deploy/maintenance/Dockerfile.pg17-ca`). Le paquet CA et les trois binaires Go

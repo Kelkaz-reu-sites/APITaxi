@@ -397,6 +397,14 @@ shell commands from running.
 
 ## 8. Start or update services
 
+Le correctif Brotli du 4 novembre est reçu sur le même volume PG17 : voir
+[`maintenance/POSTGRES_UPGRADE.md`](maintenance/POSTGRES_UPGRADE.md#correctif-système-du-4-novembre-2026--reçu).
+La source `6345bb9` a sa CI verte, le backup a été restauré sur le candidat isolé,
+les empreintes de données sont conservées et le scan intégral REZO est sans
+HIGH/CRITICAL. Une future modification de l'image PostgreSQL suit cette procédure
+de contrôle pour un correctif système, ou le protocole de migration pour un
+changement de moteur/extensions.
+
 ### Compose deployment on the Rezo VPS
 
 **Existing live VPS, checked 22 October 2026:** follow REZO `doc/DEPLOY.md`
