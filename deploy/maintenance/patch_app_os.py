@@ -14,6 +14,7 @@ import urllib.request
 from pathlib import Path
 
 import patch_pg17_os as guards
+import cutover_postgres
 
 PREVIOUS = {
     "taxi-web": "sha256:f9554b2a7dc781322d4cf251f1f26e7d982f2e4e7660251ae1359a26e315b48a",
@@ -163,6 +164,7 @@ def activate(sha, ci_run, images):
                     raise ValueError("The activated image differs")
             if guards.inspect_database() != guards.CANDIDATE:
                 raise ValueError("The database identity changed")
+            cutover_postgres.application_database_smoke()
             guards.command(
                 "docker",
                 "exec",

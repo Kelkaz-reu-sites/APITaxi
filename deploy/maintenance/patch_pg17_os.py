@@ -17,6 +17,8 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
+import cutover_postgres
+
 ROOT = Path("/opt/rezo-taxi-core")
 BASE = "19174e25258457a6d813b8dd5fce4f3d07bfc301"
 SOURCE = "sha256:c71149e092dfa75876bbb7d9c5bc5ca8fd40c7d6b6ce24f7de63d0b279ff721c"
@@ -271,6 +273,9 @@ def patch(sha, ci_run, backup, digest):
                         "Database identity or application data fingerprints differ"
                     )
                 command(*COMPOSE, "start", *WRITERS)
+                for service in WRITERS:
+                    cutover_postgres.wait_healthy(f"rezo-taxi-core-{service}-1")
+                cutover_postgres.application_database_smoke()
                 command(
                     "docker",
                     "exec",
