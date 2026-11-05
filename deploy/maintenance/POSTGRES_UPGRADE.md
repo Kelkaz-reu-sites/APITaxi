@@ -1,5 +1,33 @@
 # PostgreSQL et TimescaleDB — migration réalisée et preuves
 
+## Correctif APT du 5 novembre 2026 — préparé
+
+Le scan intégral a détecté `CVE-2026-109518` dans APT : les trois applications
+Ubuntu 24.04 et l’image PostgreSQL Ubuntu 22.04 sont concernées. Les seuils
+Ubuntu sont respectivement **2.8.4ubuntu0.1** et **2.4.15ubuntu0.1**. Pendant le
+bootstrap, `Acquire::Retries=0` applique la mitigation de l’avis officiel.
+
+La nouvelle image PG17 épinglée est
+`sha256:2efc3ece4a7ac579c53c04f7fc68cd065e91c531032df543b9303e7ec09c327c`.
+La liste de paquets autorisés du lot historique est étendue uniquement à APT et
+libapt ; les trois hashes moteurs restent identiques. Aucun schéma ou volume
+n’est modifié. `patch_pg17_os.py` conserve la CI exacte, la sauvegarde complète
+chiffrée fraîche vérifiée sur PC, le gel des writers, les empreintes des tables et
+le retour à l’image précédente sur le même volume. Une restauration réelle du
+backup est répétée dans un clone isolé avant activation.
+
+`patch_app_os.py` reçoit les trois IDs immuables construits depuis le SHA validé
+(label OCI vérifié), exige APT corrigé et un scan complet sans HIGH/CRITICAL,
+puis remplace uniquement web/worker/beat, sans build implicite ni migration. Il
+conserve le tag de production `8827452`, vérifie la santé et SQL/Redis et revient
+aux trois images précédentes en cas d’échec. Le pin PG17 et son volume sont
+contrôlés avant/après. Les reçus sont écrits sous
+`/var/backups/rezo-taxi-core/os-patch-20261105/`.
+
+Ces opérations sont exécutées avec le cache Trivy rafraîchi de REZO :
+`TRIVY_CACHE_DIR=/var/lib/rezo-maintenance/trivy`. Les anciens reçus du
+4 novembre restent historiques ; ils ne prouvent pas la réception de ce lot.
+
 ## Correctif système du 4 novembre 2026 — reçu
 
 Le scan complet des conteneurs a détecté `CVE-2026-111497` sur

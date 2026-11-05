@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply the reviewed Brotli-only PG17 image with the existing data volume.
+"""Apply the reviewed APT-only PG17 image with the existing data volume.
 
 No migration, restore or volume creation/deletion is performed. An activation
 failure returns to the previous engine-identical image on the SAME data volume.
@@ -18,9 +18,9 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path("/opt/rezo-taxi-core")
-BASE = "61b9154b374e8520df4c0bc04be776c0cee93070"
-SOURCE = "sha256:f180ded02bf7e10135f62ae8e6ab8b59425d406dbe1eacaa33a1439046e39c0a"
-CANDIDATE = "sha256:c71149e092dfa75876bbb7d9c5bc5ca8fd40c7d6b6ce24f7de63d0b279ff721c"
+BASE = "19174e25258457a6d813b8dd5fce4f3d07bfc301"
+SOURCE = "sha256:c71149e092dfa75876bbb7d9c5bc5ca8fd40c7d6b6ce24f7de63d0b279ff721c"
+CANDIDATE = "sha256:2efc3ece4a7ac579c53c04f7fc68cd065e91c531032df543b9303e7ec09c327c"
 VOLUME = "rezo-taxi-core_taxi-postgres-17-data"
 DATABASE = "rezo-taxi-core-taxi-postgres-1"
 WRITERS = ("taxi-web", "taxi-worker", "taxi-beat")
@@ -170,6 +170,9 @@ def patch(sha, ci_run, backup, digest):
                 or path
                 in {
                     "docker-compose.production.yml",
+                    "Dockerfile",
+                    "deploy/maintenance/patch_app_os.py",
+                    "deploy/maintenance/test_patch_app_os.py",
                     "deploy/maintenance/Dockerfile.pg17-ca",
                     "deploy/maintenance/patch_pg17_os.py",
                     "deploy/maintenance/test_patch_pg17_os.py",
@@ -242,8 +245,8 @@ def patch(sha, ci_run, backup, digest):
                     "Writers must be healthy before this maintenance starts"
                 )
         git("reset", "--hard", sha)
-        command("docker", "image", "tag", SOURCE, "rezo-taxi-pg17:rollback-20261104")
-        state = Path("/var/backups/rezo-taxi-core/os-patch-20261104")
+        command("docker", "image", "tag", SOURCE, "rezo-taxi-pg17:rollback-20261105")
+        state = Path("/var/backups/rezo-taxi-core/os-patch-20261105")
         state.mkdir(mode=0o700, parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix=".activation-", dir=state) as temporary:
             rollback = Path(temporary) / "rollback.yml"

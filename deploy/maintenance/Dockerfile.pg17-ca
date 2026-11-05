@@ -4,7 +4,7 @@ ARG GO_TOOLS_SOURCE=go-tools
 FROM golang:1.27.3-bookworm@sha256:972b4110ba0f47539a975c31e52c64765e1ff19f2d74469ae4a595c6676e80a5 AS go-tools
 ENV CGO_ENABLED=0 GOARCH=amd64 GOOS=linux GOTOOLCHAIN=local \
     GOMAXPROCS=2 GOMEMLIMIT=1500MiB GOFLAGS="-mod=mod -p=2"
-RUN apt-get update && apt-get install -y --no-install-recommends --only-upgrade ca-certificates \
+RUN apt-get -o Acquire::Retries=0 update && apt-get -o Acquire::Retries=0 install -y --no-install-recommends --only-upgrade ca-certificates apt \
     && update-ca-certificates && rm -rf /var/lib/apt/lists/*
 ADD --checksum=sha256:d8e48b736dc9a86940723d1ec8332849704b4540a63a65db7aff0ee40fedf8a3 https://codeload.github.com/woblerr/pgbackrest_exporter/tar.gz/ad666e8c2a4d72dc84b7186774b52c058b668565 /tmp/pgbackrest.tar.gz
 ADD --checksum=sha256:d1819d334fd8e572468f8a3a3e35744223d09fccb1004dbd967647f03e84a58b https://codeload.github.com/prometheus-community/pgbouncer_exporter/tar.gz/5716a88b8dc8ce887878b2bda832ff46d79f67d2 /tmp/pgbouncer.tar.gz
@@ -51,11 +51,12 @@ COPY --from=selected-go-tools --chmod=0755 /out/pgbackrest_exporter /usr/bin/pgb
 COPY --from=selected-go-tools --chmod=0755 /out/pgbouncer_exporter /usr/local/bin/pgbouncer_exporter
 COPY --from=selected-go-tools --chmod=0755 /out/yq /usr/local/bin/yq
 RUN dpkg-query -W -f='${binary:Package}=${Version}\n' > /tmp/packages-before-ca.txt \
- && apt-get update \
- && apt-get install -y --no-install-recommends --only-upgrade ca-certificates libbrotli1=1.0.9-2ubuntu0.1 \
+ && apt-get -o Acquire::Retries=0 update \
+ && apt-get -o Acquire::Retries=0 install -y --no-install-recommends --only-upgrade ca-certificates libbrotli1=1.0.9-2ubuntu0.1 apt libapt-pkg6.0 \
+ && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' apt)" ge 2.4.15ubuntu0.1 \
  && update-ca-certificates \
  && dpkg-query -W -f='${binary:Package}=${Version}\n' > /tmp/packages-after-ca.txt \
- && python3 -c "from pathlib import Path; parse=lambda p:dict(line.split('=',1) for line in Path(p).read_text().splitlines()); a=parse('/tmp/packages-before-ca.txt'); b=parse('/tmp/packages-after-ca.txt'); changed={n.split(':')[0] for n in a.keys()|b.keys() if a.get(n)!=b.get(n)}; assert changed <= {'ca-certificates', 'libbrotli1'}, 'Unreviewed packages changed'" \
+ && python3 -c "from pathlib import Path; parse=lambda p:dict(line.split('=',1) for line in Path(p).read_text().splitlines()); a=parse('/tmp/packages-before-ca.txt'); b=parse('/tmp/packages-after-ca.txt'); changed={n.split(':')[0] for n in a.keys()|b.keys() if a.get(n)!=b.get(n)}; assert changed <= {'ca-certificates', 'libbrotli1', 'apt', 'libapt-pkg6.0'}, 'Unreviewed packages changed'" \
  && python3 -B /opt/rezo-ca/check_ca_trust.py \
  && printf '%s\n' \
     '08243b402581cded406b3b619921021537a81e74fc99c80a499c468a2e3144c3  /usr/lib/postgresql/17/bin/postgres' \
@@ -63,6 +64,6 @@ RUN dpkg-query -W -f='${binary:Package}=${Version}\n' > /tmp/packages-before-ca.
     'f91bf098ab06f8e3016fc42acb0ab2e680241d223ec2b6b93b92188f0852a27f  /usr/lib/postgresql/17/lib/postgis-3.so' | sha256sum -c - \
  && rm -rf /var/lib/apt/lists/* /tmp/packages-before-ca.txt /tmp/packages-after-ca.txt
 USER postgres
-LABEL rezo.maintenance.scope="ca-go-tools-brotli-no-engine-upgrade" \
+LABEL rezo.maintenance.scope="ca-go-tools-brotli-apt-no-engine-upgrade" \
       rezo.maintenance.go="1.27.3" \
       rezo.maintenance.base="sha256:26e355e055c97d0a51afc415b71fa728dd85664fb24165d595cc8cd0c485b2fc"

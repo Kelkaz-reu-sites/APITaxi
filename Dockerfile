@@ -14,7 +14,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV DEBCONF_NONINTERACTIVE_SEEN=true
 
 USER root
-RUN apt-get update && apt-get upgrade -y \
+RUN apt-get -o Acquire::Retries=0 update && apt-get -o Acquire::Retries=0 upgrade -y \
  && apt-get install -y --no-install-recommends ca-certificates \
  && update-ca-certificates
 RUN apt-get install -y gpgv
@@ -121,12 +121,15 @@ CMD watchmedo auto-restart --directory=/git/ --pattern='*.py' --recursive -- cel
 FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac AS runtime-dependencies
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get -o Acquire::Retries=0 update \
+ && apt-get -o Acquire::Retries=0 upgrade -y --no-install-recommends \
+ && apt-get -o Acquire::Retries=0 install -y --no-install-recommends \
   ca-certificates \
   libpq-dev \
   python3-pip \
   python3-venv \
   libgeos-dev \
+ && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' apt)" ge 2.8.4ubuntu0.1 \
  && update-ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
@@ -143,7 +146,7 @@ RUN /venv/bin/pip install --no-cache-dir --require-hashes -r /build/requirements
 
 
 ##### PROD RUNTIME IMAGE #####
-FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac AS runtime
+FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac AS runtime-os
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DEBCONF_NONINTERACTIVE_SEEN=true
@@ -151,14 +154,20 @@ ENV PYTHONUNBUFFERED=1
 
 # Keep only the interpreter and shared libraries in the deployed image. The
 # build stage owns pip and development headers, including linux-libc-dev.
-RUN apt-get update && apt-get install -y --no-install-recommends \
+ARG OS_SECURITY_EPOCH=2026-11-05
+RUN test -n "$OS_SECURITY_EPOCH" \
+ && apt-get -o Acquire::Retries=0 update \
+ && apt-get -o Acquire::Retries=0 upgrade -y --no-install-recommends \
+ && apt-get -o Acquire::Retries=0 install -y --no-install-recommends \
   ca-certificates \
   libpq5 \
   python3 \
   libgeos-c1t64 \
+ && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' apt)" ge 2.8.4ubuntu0.1 \
  && update-ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
+FROM runtime-os AS runtime
 COPY --from=runtime-dependencies /venv /venv
 
 RUN useradd --system --create-home --home-dir /home/api --shell /usr/sbin/nologin api
