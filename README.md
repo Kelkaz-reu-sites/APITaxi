@@ -13,6 +13,13 @@ This project has several dependencies:
 
 To setup the API locally, use [APITaxi_devel](https://github.com/openmaraude/APITaxi_devel).
 
+## Production REZO : maintenance du 5 novembre 2026
+
+APT est corrigé dans les trois applications et dans l’image PG17, avec les mêmes
+moteurs et le même volume de données. Sauvegarde chiffrée restaurée en essai,
+contrôles SQL/Redis réussis et scan complet des neuf conteneurs REZO sans
+HIGH/CRITICAL : voir [le reçu et le protocole](deploy/maintenance/POSTGRES_UPGRADE.md).
+
 ## Rezo Taxi Core local Docker Compose
 
 This fork is used by REZO as the internal Rezo Taxi Core service. The local

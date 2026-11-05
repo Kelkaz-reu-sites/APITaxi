@@ -1,6 +1,6 @@
 # PostgreSQL et TimescaleDB — migration réalisée et preuves
 
-## Correctif APT du 5 novembre 2026 — préparé
+## Correctif APT du 5 novembre 2026 — reçu
 
 Le scan intégral a détecté `CVE-2026-109518` dans APT : les trois applications
 Ubuntu 24.04 et l’image PostgreSQL Ubuntu 22.04 sont concernées. Les seuils
@@ -27,6 +27,29 @@ contrôlés avant/après. Les reçus sont écrits sous
 Ces opérations sont exécutées avec le cache Trivy rafraîchi de REZO :
 `TRIVY_CACHE_DIR=/var/lib/rezo-maintenance/trivy`. Les anciens reçus du
 4 novembre restent historiques ; ils ne prouvent pas la réception de ce lot.
+
+Réception du lot : source `8b5942c8caa573f17e8adecda661131bda531075`,
+[CI complète 42060017206](https://github.com/Kelkaz-reu-sites/APITaxi/actions/runs/42060017206).
+La base est reçue à **16:02 UTC**, les trois applications à **16:03 UTC**.
+Le volume existant et les empreintes de toutes les tables applicatives avant/après
+sont identiques ; les trois hashes de moteurs sont inchangés. La connexion réelle
+SQL/Redis et les cinq services Taxi sont sains.
+
+La sauvegarde `apitaxi-full-20261105T155511Z.tar.age` a été copiée sur PC, relue,
+déchiffrée et restaurée dans le candidat isolé : **46 tables publiques**,
+TimescaleDB 2.31.0, Toolkit 1.26.0 et PostGIS 3.6.4. SHA-256 du chiffré :
+`babab407edff4c51bd27032147433c1f0d0433a38d27819e0330a847fb264ef6`.
+Aucune restauration n’a été faite sur la production. Le conteneur d’essai et ses
+données en tmpfs ont été supprimés.
+
+Le scan complet du runtime REZO terminé à **16:04:37 UTC le 5 novembre** couvre
+**9 conteneurs, 9 images, zéro HIGH/CRITICAL**, y compris les avis sans correctif.
+La base Trivy officielle est mise à jour à 13:09 UTC, téléchargée à 16:04 UTC ;
+les identités des conteneurs sont contrôlées avant/après le scan. Les reçus
+serveur sont dans `os-patch-20261105/receipt.json` et `application-receipt.json`
+sous le répertoire de sauvegarde ci-dessus ; la preuve finale est
+`/var/lib/rezo-maintenance/scans/latest.json`. Les copies privées PC et la preuve
+de restauration sont dans `immo/logs/maintenance/actions-20261105/`.
 
 ## Correctif système du 4 novembre 2026 — reçu
 
